@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FMB Kitchen Management System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
   --primary:#c0392b; --primary-dark:#922b21; --accent:#27ae60; --bg:#f7f5f2;
@@ -286,6 +287,41 @@ async function addLedgerEntry(entry){
   await addOne("stockLedger", { ...entry, date: entry.date || todayStr() });
 }
 
+// ---- Rate helper: Per-thali/Per-person costing MUST be based on the actual
+// Receiving/Purchase tab rate (not the old Ingredient Master rate field).
+// We take the MOST RECENT receiving rate recorded for each ingredient.
+async function getReceivingRateMap(){
+  const receivings = await listAll("receivings");
+  receivings.sort((a,b)=> (a.date||"").localeCompare(b.date||"")); // oldest -> newest
+  const map = {};
+  receivings.forEach(r=>{
+    (r.items||[]).forEach(it=>{
+      if (it.ingredientId && it.rate){ map[it.ingredientId] = Number(it.rate)||0; } // later overwrites earlier => latest wins
+    });
+  });
+  return map;
+}
+
+// Compute total cost / per-thali / per-person for one menu doc using a rate map.
+// Items without ingredientId (custom/open-field items) are skipped from cost
+// (their rate is unknown) but still counted for indent/requirement purposes elsewhere.
+function computeMenuCost(menu, rateMap){
+  const numThalis = Number(menu.numThalis)||0;
+  const numPersons = Number(menu.numPersons)||0;
+  let cost = 0;
+  (menu.items||[]).forEach(it=>{
+    if (!it.ingredientId) return; // custom item, rate unknown, excluded from cost
+    const rate = rateMap[it.ingredientId] || 0;
+    cost += (Number(it.qtyPerThali)||0) * numThalis * rate;
+  });
+  return {
+    cost,
+    perThali: numThalis ? cost/numThalis : 0,
+    perPerson: numPersons ? cost/numPersons : 0
+  };
+}
+
+
 // ---------------- i18n.js: Hindi/English translations ----------------
 // ==========================================================================
 // i18n.js — Hindi / English translation layer
@@ -323,7 +359,7 @@ const STR = {
     wastedThalis:"खराब/अनुपयोगी थालियां", distributionCenter:"वितरण केंद्र",
     remainingThalis:"शेष थालियां", dailyReport:"दैनिक रिपोर्ट", createUser:"नया यूज़र बनाएं",
     role:"रोल (भूमिका)", customRole:"कस्टम रोल बनाएं", permissions:"अधिकार",
-    view:"देखें", add:"जोड़ें", export:"एक्सपोर्ट", welcome:"स्वागत है",
+    view:"देखें", add:"जोड़ें", export:"एक्सपोर्ट", welcome:"स्वागत है", issue:"जारी करें",
     submit:"सबमिट करें", close:"बंद करें", search:"खोजें", total:"कुल",
     module:"मॉड्यूल", noData:"कोई डेटा उपलब्ध नहीं है", from:"स्रोत",
     fromStock:"स्टॉक से", notInStock:"स्टॉक में उपलब्ध नहीं",
@@ -331,6 +367,16 @@ const STR = {
     accessDenied:"आपको इस पेज को देखने की अनुमति नहीं है।",
     invalidLogin:"ईमेल या पासवर्ड गलत है।", resetLinkSent:"रीसेट लिंक भेज दिया गया है, अपना ईमेल जांचें।",
     passwordChanged:"पासवर्ड सफलतापूर्वक बदला गया।", saved:"सफलतापूर्वक सहेजा गया।",
+    numPersons:"व्यक्तियों की संख्या", perPersonExpenditure:"प्रति व्यक्ति खर्च",
+    personsToServe:"आज कितने व्यक्तियों को भोजन", perPersonExp:"प्रति व्यक्ति खर्च रिपोर्ट",
+    bulkUpload:"बल्क अपलोड (सामग्री सूची)", chooseFile:"फाइल चुनें", defaultUnit:"डिफ़ॉल्ट इकाई",
+    uploadAndImport:"अपलोड और आयात करें", uploading:"आयात हो रहा है...",
+    customIngredient:"नई/कस्टम सामग्री (मास्टर में नहीं)", customIngName:"सामग्री का नाम लिखें",
+    addCustomItem:"कस्टम आइटम जोड़ें", searchIngredient:"सामग्री खोजें...", allCategories:"सभी श्रेणियां",
+    vendorName:"वेंडर / सप्लायर का नाम", permissionsMatrix:"अधिकार (मॉड्यूल अनुसार)",
+    editPermissions:"अधिकार संपादित करें", useCustomPerm:"कस्टम अधिकार इस्तेमाल करें (रोल की जगह)",
+    notAvailable:"उपलब्ध नहीं", rateNotSet:"दर उपलब्ध नहीं (कभी receive नहीं हुआ)",
+    itemsImported:"आइटम आयात किए गए", itemsSkipped:"आइटम स्किप किए गए (पहले से मौजूद)",
   },
   en: {
     email:"Email", password:"Password", loginBtn:"Login",
@@ -364,7 +410,7 @@ const STR = {
     wastedThalis:"Wasted/Unusable Thalis", distributionCenter:"Distribution Center",
     remainingThalis:"Remaining Thalis", dailyReport:"Daily Report", createUser:"Create User",
     role:"Role", customRole:"Create Custom Role", permissions:"Permissions",
-    view:"View", add:"Add", export:"Export", welcome:"Welcome",
+    view:"View", add:"Add", export:"Export", welcome:"Welcome", issue:"Issue",
     submit:"Submit", close:"Close", search:"Search", total:"Total",
     module:"Module", noData:"No data available", from:"Source",
     fromStock:"From Stock", notInStock:"Not in Stock",
@@ -372,6 +418,16 @@ const STR = {
     accessDenied:"You do not have permission to view this page.",
     invalidLogin:"Invalid email or password.", resetLinkSent:"Reset link sent, please check your email.",
     passwordChanged:"Password changed successfully.", saved:"Saved successfully.",
+    numPersons:"Number of Persons", perPersonExpenditure:"Per Person Expenditure",
+    personsToServe:"Persons to Serve Today", perPersonExp:"Per Person Expenditure Report",
+    bulkUpload:"Bulk Upload (Ingredient List)", chooseFile:"Choose File", defaultUnit:"Default Unit",
+    uploadAndImport:"Upload & Import", uploading:"Importing...",
+    customIngredient:"New/Custom Ingredient (not in Master)", customIngName:"Type ingredient name",
+    addCustomItem:"Add Custom Item", searchIngredient:"Search ingredient...", allCategories:"All Categories",
+    vendorName:"Vendor / Supplier Name", permissionsMatrix:"Permissions (per module)",
+    editPermissions:"Edit Permissions", useCustomPerm:"Use custom permissions (override role)",
+    notAvailable:"Not available", rateNotSet:"Rate not available (never received yet)",
+    itemsImported:"items imported", itemsSkipped:"items skipped (already exist)",
   }
 };
 
@@ -410,7 +466,7 @@ applyStaticTranslations();
 
 const MODULES = [
   "dashboard","ingredients","suppliers","menu","indent","approval",
-  "storeIssue","receiving","procurement","distribution","reports","users"
+  "storeIssue","receiving","procurement","distribution","reports","perPersonExp","users"
 ];
 const ACTIONS = ["view","add","edit","approve","issue","delete","export"];
 
@@ -607,41 +663,37 @@ window.csvExport = csvExport;
 async function renderDashboard(){
   main().innerHTML = `<p>Loading...</p>`;
   const today = todayStr();
-  const [menus, indents, distribution, ledger, pos] = await Promise.all([
+  const [menus, distribution, rateMap] = await Promise.all([
     listWhere("menus","date","==",today),
-    listAll("indents"),
     listWhere("distribution","date","==",today),
-    listWhere("stockLedger","date","==",today),
-    listAll("purchaseOrders")
+    getReceivingRateMap()
   ]);
-  const todaysIndents = indents.filter(i=>i.date===today);
-  const pendingApproval = indents.filter(i=>i.status==="pending").length;
-  const approvedIndents = indents.filter(i=>i.status==="approved").length;
-  const pendingPurchaseItems = pos.filter(p=>p.status==="pending"||p.status==="ordered")
-      .reduce((s,p)=> s + (p.items?p.items.length:0), 0);
   const thalisToPrepare = menus.reduce((s,m)=> s + (Number(m.numThalis)||0), 0);
+  const personsToServe = menus.reduce((s,m)=> s + (Number(m.numPersons)||0), 0);
   const distToday = distribution[0] || {distributedThalis:0, preparedThalis:0};
-  const consumptionQty = ledger.filter(l=>l.type==="out").reduce((s,l)=> s + Number(l.qty||0), 0);
-  const expenditureToday = ledger.filter(l=>l.type==="in").reduce((s,l)=> s + Number(l.amount||0), 0);
-  const perThali = distToday.distributedThalis ? (expenditureToday / distToday.distributedThalis) : 0;
+
+  // Per-thali / per-person expenditure: computed from Menu items using the
+  // MOST RECENT Receiving/Purchase tab rate for each ingredient (not the
+  // old Ingredient Master rate field).
+  let expenditureToday = 0;
+  menus.forEach(m => { expenditureToday += computeMenuCost(m, rateMap).cost; });
+  const perThali = thalisToPrepare ? (expenditureToday / thalisToPrepare) : 0;
+  const perPerson = personsToServe ? (expenditureToday / personsToServe) : 0;
 
   main().innerHTML = `
     <div class="section-title">${t("dashboard")} — ${today}</div>
     <div class="kpi-grid">
       ${kpiCard(thalisToPrepare, "thalisToPrepare")}
+      ${kpiCard(personsToServe, "personsToServe")}
       ${kpiCard(distToday.distributedThalis||0, "thalisDistributed")}
-      ${kpiCard(todaysIndents.length, "todaysIndents")}
-      ${kpiCard(pendingApproval, "pendingApproval")}
-      ${kpiCard(approvedIndents, "approvedIndents")}
-      ${kpiCard(pendingPurchaseItems, "pendingPurchase")}
-      ${kpiCard(consumptionQty.toFixed(2), "todaysConsumption")}
-      ${kpiCard(money(expenditureToday), "todaysExpenditure")}
+      ${kpiCard(money(expenditureToday.toFixed(2)), "todaysExpenditure")}
       ${kpiCard(money(perThali.toFixed(2)), "perThaliExpenditure")}
+      ${kpiCard(money(perPerson.toFixed(2)), "perPersonExpenditure")}
     </div>
     <div class="card">
       <div class="section-title">${t("todaysMenu")}</div>
-      ${menus.length ? `<table><tr><th>${t("menuName")}</th><th>${t("numThalis")}</th></tr>
-        ${menus.map(m=>`<tr><td>${esc(currentLang==="hi"?m.name_hi:m.name_en)}</td><td>${esc(m.numThalis)}</td></tr>`).join("")}
+      ${menus.length ? `<table><tr><th>${t("menuName")}</th><th>${t("numThalis")}</th><th>${t("numPersons")}</th></tr>
+        ${menus.map(m=>`<tr><td>${esc(currentLang==="hi"?m.name_hi:m.name_en)}</td><td>${esc(m.numThalis)}</td><td>${esc(m.numPersons||"-")}</td></tr>`).join("")}
       </table>` : `<p>${t("noData")}</p>`}
     </div>`;
 }
@@ -664,20 +716,53 @@ async function renderIngredients(){
           <select id="ingType"><option value="veg">${t("veg")}</option><option value="nonveg">${t("nonveg")}</option></select>
         </div>
         <div><label>${t("category")}</label><input id="ingCategory" placeholder="Vegetable / Grain / Spice / Dairy / Meat"></div>
-        <div><label>Est. Rate (₹/unit)</label><input id="ingRate" type="number" step="0.01"></div>
       </div>
       <button class="btn-primary" style="width:auto" onclick="saveIngredient()">${t("addNew")}</button>
+    </div>
+    <div class="card">
+      <div class="section-title">${t("bulkUpload")}</div>
+      <p style="font-size:12px;color:#777">
+        ${currentLang==='hi'
+          ? 'फॉर्मैट: कॉलम — क्र., हिंदी नाम, English Name। श्रेणी हेडर वाली पंक्ति (जैसे "A. अनाज... | Grains...") अपने-आप श्रेणी के रूप में पहचानी जाएगी। "2." से शुरू होने वाली श्रेणियों के बाद के सभी आइटम अपने-आप मांसाहारी (Non-Veg) माने जाएंगे, बाकी सभी शाकाहारी। दर (Rate) की कोई आवश्यकता नहीं।'
+          : 'Format: columns — Sr No, Hindi Name, English Name. A category-header row (e.g. "A. Grains... | Grains...") is auto-detected as a category. Everything after a category starting with "2." is auto-marked Non-Veg; everything before that is Veg. No Rate column needed.'}
+      </p>
+      <div class="form-row">
+        <div><label>${t("chooseFile")} (.xlsx / .xls / .csv)</label><input type="file" id="bulkIngFile" accept=".xlsx,.xls,.csv"></div>
+        <div><label>${t("defaultUnit")}</label>
+          <select id="bulkIngDefaultUnit">
+            <option value="kg">kg</option><option value="ltr">ltr</option><option value="pc">pc</option><option value="gm">gm</option>
+          </select>
+        </div>
+        <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="bulkUploadIngredients()">${t("uploadAndImport")}</button></div>
+      </div>
+      <p id="bulkUploadMsg" style="font-size:13px;"></p>
     </div>` : ""}
     <div class="card">
-      <table><tr><th>${t("name")}</th><th>${t("unit")}</th><th>${t("type")}</th><th>${t("category")}</th><th>Rate</th>${canAdd?`<th>${t("action")}</th>`:""}</tr>
-      ${items.map(i=>`<tr>
-        <td>${esc(i.name_hi)} / ${esc(i.name_en)}</td><td>${esc(i.unit)}</td>
-        <td><span class="tag ${i.type==='veg'?'tag-veg':'tag-nonveg'}">${t(i.type)}</span></td>
-        <td>${esc(i.category||"-")}</td><td>${money(i.rate)}</td>
-        ${canAdd?`<td><button class="small-btn" onclick="deleteIngredient('${i.id}')">${t("delete")}</button></td>`:""}
-      </tr>`).join("")}
-      </table>
+      <div class="form-row">
+        <div><label>${t("category")}</label>
+          <select id="ingFilterCategory" onchange="renderIngredientsTable()"><option value="">${t("allCategories")}</option>
+            ${[...new Set(items.map(i=>i.category).filter(Boolean))].sort().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <table id="ingredientsTable"></table>
     </div>`;
+  window.__allIngredientsCache = items;
+  renderIngredientsTable();
+}
+function renderIngredientsTable(){
+  const tbl = document.getElementById("ingredientsTable");
+  if (!tbl) return;
+  const canAdd = can(currentUserDoc, "ingredients", "add");
+  const filterCat = document.getElementById("ingFilterCategory")?.value || "";
+  const items = (window.__allIngredientsCache||[]).filter(i => !filterCat || i.category===filterCat);
+  tbl.innerHTML = `<tr><th>${t("name")}</th><th>${t("unit")}</th><th>${t("type")}</th><th>${t("category")}</th>${canAdd?`<th>${t("action")}</th>`:""}</tr>` +
+    items.map(i=>`<tr>
+      <td>${esc(i.name_hi)} / ${esc(i.name_en)}</td><td>${esc(i.unit)}</td>
+      <td><span class="tag ${i.type==='veg'?'tag-veg':'tag-nonveg'}">${t(i.type)}</span></td>
+      <td>${esc(i.category||"-")}</td>
+      ${canAdd?`<td><button class="small-btn" onclick="deleteIngredient('${i.id}')">${t("delete")}</button></td>`:""}
+    </tr>`).join("");
 }
 window.saveIngredient = async function(){
   const data = {
@@ -685,8 +770,7 @@ window.saveIngredient = async function(){
     name_en: document.getElementById("ingNameEn").value.trim(),
     unit: document.getElementById("ingUnit").value.trim() || "kg",
     type: document.getElementById("ingType").value,
-    category: document.getElementById("ingCategory").value.trim(),
-    rate: Number(document.getElementById("ingRate").value)||0
+    category: document.getElementById("ingCategory").value.trim()
   };
   if (!data.name_hi && !data.name_en){ showToast("Naam bharen","error"); return; }
   const id = await addOne("ingredients", data);
@@ -698,6 +782,66 @@ window.deleteIngredient = async function(id){
   if (!confirm("Delete?")) return;
   await removeOne("ingredients", id);
   renderIngredients();
+};
+
+// ---- Bulk upload parser: matches the FMB items list format
+// (Sr No | Hindi Name | English Name), with category-header rows and an
+// automatic Veg -> Non-Veg switch once a "2. ..." section header is seen.
+window.bulkUploadIngredients = async function(){
+  const fileInput = document.getElementById("bulkIngFile");
+  const msgEl = document.getElementById("bulkUploadMsg");
+  const defaultUnit = document.getElementById("bulkIngDefaultUnit").value || "kg";
+  const file = fileInput.files[0];
+  if (!file){ msgEl.textContent = currentLang==='hi' ? "पहले फाइल चुनें" : "Choose a file first"; return; }
+  msgEl.textContent = t("uploading");
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:"" });
+
+    const existing = await listAll("ingredients");
+    const existingNames = new Set(existing.map(i => (i.name_hi||"").trim().toLowerCase()).filter(Boolean));
+
+    let currentCategory = "";
+    let isNonVeg = false;
+    let imported = 0, skipped = 0;
+
+    for (let r = 0; r < rows.length; r++){
+      const row = rows[r];
+      const c0 = String(row[0]||"").trim();
+      const c1 = String(row[1]||"").trim();
+      const c2 = String(row[2]||"").trim();
+      if (!c0 && !c1 && !c2) continue; // blank line
+      if (/^क्र\.?$/i.test(c0) || /^sr/i.test(c0)) continue; // header row itself
+
+      const looksLikeCategoryHeader = (c0 && !c1 && !c2) || (isNaN(Number(c0)) && c0.length>3 && !c1 && !c2);
+      if (looksLikeCategoryHeader){
+        currentCategory = c0.replace(/^[A-Za-z0-9]+\.\s*/, "").trim(); // strip "A. " / "2. " prefix
+        if (/^2\./.test(c0)) isNonVeg = true; // "2. मांसाहारी..." section => everything after is Non-Veg
+        continue;
+      }
+      // item row: needs at least a Hindi or English name
+      const nameHi = c1, nameEn = c2;
+      if (!nameHi && !nameEn) continue;
+      const key = nameHi.trim().toLowerCase();
+      if (key && existingNames.has(key)){ skipped++; continue; }
+      const data = {
+        name_hi: nameHi, name_en: nameEn, unit: defaultUnit,
+        type: isNonVeg ? "nonveg" : "veg", category: currentCategory
+      };
+      const id = await addOne("ingredients", data);
+      await setOne("stock", id, { qtyInHand:0, qtyInPipeline:0 });
+      if (key) existingNames.add(key);
+      imported++;
+    }
+    msgEl.textContent = `${imported} ${t("itemsImported")}, ${skipped} ${t("itemsSkipped")}`;
+    showToast(t("saved"),"success");
+    renderIngredients();
+  }catch(err){
+    console.error(err);
+    msgEl.textContent = err.message;
+  }
 };
 
 // ==========================================================================
@@ -737,9 +881,12 @@ window.saveSupplier = async function(){
 // ==========================================================================
 let menuDraftItems = [];
 async function renderMenu(){
-  const [menus, ingredients] = await Promise.all([listAll("menus"), listAll("ingredients")]);
+  const [menus, ingredients, allIndents] = await Promise.all([listAll("menus"), listAll("ingredients"), listAll("indents")]);
   const canAdd = can(currentUserDoc, "menu", "add");
   menus.sort((a,b)=> (b.date||"").localeCompare(a.date||""));
+  const categories = [...new Set(ingredients.map(i=>i.category).filter(Boolean))].sort();
+  const menuIndentsByMenuId = {};
+  allIndents.forEach(ind => { if (ind.menuId && !menuIndentsByMenuId[ind.menuId]) menuIndentsByMenuId[ind.menuId] = ind; });
 
   main().innerHTML = `
     <div class="section-title">${t("menu")}</div>
@@ -749,16 +896,29 @@ async function renderMenu(){
         <div><label>${t("menuName")} (Hindi)</label><input id="menuNameHi"></div>
         <div><label>${t("menuName")} (English)</label><input id="menuNameEn"></div>
         <div><label>${t("numThalis")}</label><input id="menuThalis" type="number" min="1" value="100" oninput="recalcMenuQty()"></div>
+        <div><label>${t("numPersons")}</label><input id="menuPersons" type="number" min="1" value="100"></div>
       </div>
       <label>${t("selectIngredients")}</label>
       <div class="form-row">
-        <div style="flex:2">
-          <select id="menuIngSelect">
-            ${ingredients.map(i=>`<option value="${i.id}">${ingName(i)} (${esc(i.unit)}) — <span>${t(i.type)}</span></option>`).join("")}
+        <div><label>${t("category")}</label>
+          <select id="menuCatFilter" onchange="filterMenuIngOptions()"><option value="">${t("allCategories")}</option>
+            ${categories.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("")}
           </select>
+        </div>
+        <div><label>${t("searchIngredient")}</label><input id="menuIngSearch" oninput="filterMenuIngOptions()" placeholder="${t("searchIngredient")}"></div>
+      </div>
+      <div class="form-row">
+        <div style="flex:2">
+          <select id="menuIngSelect"></select>
         </div>
         <div><label>${t("qtyPerThali")}</label><input id="menuIngQtyPerThali" type="number" step="0.001" value="0.1"></div>
         <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addMenuIngredient()">${t("addNew")}</button></div>
+      </div>
+      <p class="hint" style="margin:4px 0">${t("customIngredient")}</p>
+      <div class="form-row">
+        <div style="flex:2"><input id="menuCustomIngName" placeholder="${t("customIngName")}"></div>
+        <div><label>${t("qtyPerThali")}</label><input id="menuCustomQtyPerThali" type="number" step="0.001" value="0.1"></div>
+        <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addMenuCustomIngredient()">${t("addCustomItem")}</button></div>
       </div>
       <table id="menuItemsTable"><tr>
         <th>${t("ingredients")}</th><th>${t("qtyPerThali")}</th><th>${t("requiredQty")}</th>
@@ -768,19 +928,37 @@ async function renderMenu(){
     </div>` : ""}
 
     <div class="card">
-      <table><tr><th>${t("date")}</th><th>${t("menuName")}</th><th>${t("numThalis")}</th><th>${t("action")}</th></tr>
-        ${menus.map(m=>`<tr>
-          <td>${esc(m.date)}</td><td>${esc(currentLang==="hi"?m.name_hi:m.name_en)}</td><td>${esc(m.numThalis)}</td>
-          <td>${can(currentUserDoc,"indent","add") ? `<button class="small-btn" onclick="generateIndentFromMenu('${m.id}')">${t("generateFromMenu")}</button>`:""}</td>
-        </tr>`).join("")}
+      <table><tr><th>${t("date")}</th><th>${t("menuName")}</th><th>${t("numThalis")}</th><th>${t("numPersons")}</th><th>${t("status")}</th></tr>
+        ${menus.map(m=>{
+          const linkedIndent = menuIndentsByMenuId[m.id];
+          const statusTag = linkedIndent ? `<span class="tag tag-${linkedIndent.status}">${t(linkedIndent.status)}</span>` : "-";
+          return `<tr>
+          <td>${esc(m.date)}</td><td>${esc(currentLang==="hi"?m.name_hi:m.name_en)}</td><td>${esc(m.numThalis)}</td><td>${esc(m.numPersons||"-")}</td>
+          <td>${statusTag}</td>
+        </tr>`;}).join("")}
       </table>
     </div>`;
 
   window.__ingredientsCache = ingredients;
   window.__stockCache = await getStockMap();
   menuDraftItems = [];
+  if (canAdd) filterMenuIngOptions();
   renderMenuItemsTable();
 }
+
+// Combines category filter + text search to repopulate the ingredient <select>
+window.filterMenuIngOptions = function(){
+  const sel = document.getElementById("menuIngSelect");
+  if (!sel) return;
+  const cat = document.getElementById("menuCatFilter")?.value || "";
+  const q = (document.getElementById("menuIngSearch")?.value || "").trim().toLowerCase();
+  const list = (window.__ingredientsCache||[]).filter(i=>{
+    if (cat && i.category !== cat) return false;
+    if (q && !((i.name_hi||"").toLowerCase().includes(q) || (i.name_en||"").toLowerCase().includes(q))) return false;
+    return true;
+  });
+  sel.innerHTML = list.map(i=>`<option value="${i.id}">${ingName(i)} (${esc(i.unit)}) — ${t(i.type)}</option>`).join("");
+};
 
 function renderMenuItemsTable(){
   const tbl = document.getElementById("menuItemsTable");
@@ -790,6 +968,16 @@ function renderMenuItemsTable(){
     <th>${t("ingredients")}</th><th>${t("qtyPerThali")}</th><th>${t("requiredQty")}</th>
     <th>${t("availableStock")}</th><th>${t("shortfall")}</th><th></th></tr>` +
     menuDraftItems.map((row,idx)=>{
+      if (!row.ingredientId){
+        // custom/open-field item — not linked to Ingredient Master, no stock tracking
+        const required = row.qtyPerThali * thalis;
+        row.requiredQty = required;
+        return `<tr>
+          <td>${esc(row.customName)} <span class="hint">(${t("customIngredient")})</span></td><td>${row.qtyPerThali}</td>
+          <td>${required.toFixed(3)}</td><td>${t("notAvailable")}</td><td>-</td>
+          <td><button class="remove-row-btn" onclick="removeMenuIngredient(${idx})">✕</button></td>
+        </tr>`;
+      }
       const ing = window.__ingredientsCache.find(i=>i.id===row.ingredientId);
       const required = row.qtyPerThali * thalis;
       const avail = (window.__stockCache[row.ingredientId]?.qtyInHand) || 0;
@@ -811,6 +999,14 @@ window.addMenuIngredient = function(){
   menuDraftItems.push({ ingredientId, qtyPerThali });
   renderMenuItemsTable();
 };
+window.addMenuCustomIngredient = function(){
+  const customName = document.getElementById("menuCustomIngName").value.trim();
+  const qtyPerThali = Number(document.getElementById("menuCustomQtyPerThali").value)||0;
+  if (!customName || qtyPerThali<=0) return;
+  menuDraftItems.push({ customName, qtyPerThali }); // no ingredientId => custom/open-field item
+  document.getElementById("menuCustomIngName").value = "";
+  renderMenuItemsTable();
+};
 window.removeMenuIngredient = function(idx){
   menuDraftItems.splice(idx,1);
   renderMenuItemsTable();
@@ -822,31 +1018,40 @@ window.saveMenu = async function(){
     name_hi: document.getElementById("menuNameHi").value.trim(),
     name_en: document.getElementById("menuNameEn").value.trim(),
     numThalis: Number(document.getElementById("menuThalis").value)||0,
-    items: menuDraftItems.map(r=>({ ingredientId:r.ingredientId, qtyPerThali:r.qtyPerThali }))
+    numPersons: Number(document.getElementById("menuPersons").value)||0,
+    items: menuDraftItems.map(r=> r.ingredientId
+      ? { ingredientId:r.ingredientId, qtyPerThali:r.qtyPerThali }
+      : { customName:r.customName, qtyPerThali:r.qtyPerThali })
   };
-  await addOne("menus", data);
+  const menuId = await addOne("menus", data);
+
+  // Cook's menu automatically becomes a pending Indent for Admin to review/approve.
+  // Admin can increase/decrease each item's quantity on the Approval screen —
+  // Store Issue only becomes possible once Admin approves it.
+  const stock = await getStockMap();
+  const indentItems = data.items.map(it=> buildIndentItemFromMenuItem(it, data.numThalis, stock));
+  await addOne("indents", {
+    date: data.date, menuId, createdBy: currentUserDoc.uid,
+    createdByName: currentUserDoc.name || currentUserDoc.email,
+    items: indentItems, status:"pending"
+  });
+
   showToast(t("saved"),"success");
   renderMenu();
 };
-
-// ---- Generate Indent directly from a saved menu ----
-window.generateIndentFromMenu = async function(menuId){
-  const menu = await getOne("menus", menuId);
-  if (!menu) return;
-  const stock = await getStockMap();
-  const items = menu.items.map(it=>{
-    const required = it.qtyPerThali * menu.numThalis;
-    const available = stock[it.ingredientId]?.qtyInHand || 0;
-    return {
-      ingredientId: it.ingredientId, requiredQty: required,
-      availableQty: available, shortfallQty: Math.max(0, required-available),
-      source: "menu"
-    };
-  });
-  indentDraftItems = items;
-  indentDraftMenuId = menuId;
-  window.__navigateTo("indent");
-};
+function buildIndentItemFromMenuItem(it, numThalis, stock){
+  const required = it.qtyPerThali * numThalis;
+  if (!it.ingredientId){
+    // custom item — not in Ingredient Master, no stock to check against
+    return { customName: it.customName, requiredQty: required, availableQty:0, shortfallQty: required, source: "custom" };
+  }
+  const available = stock[it.ingredientId]?.qtyInHand || 0;
+  return {
+    ingredientId: it.ingredientId, requiredQty: required,
+    availableQty: available, shortfallQty: Math.max(0, required-available),
+    source: "menu"
+  };
+}
 
 // ==========================================================================
 // INDENT
@@ -863,7 +1068,9 @@ async function renderIndent(){
   main().innerHTML = `
     <div class="section-title">${t("indent")}</div>
     ${canAdd ? `<div class="card">
-      <p style="font-size:13px;color:#777">${t("generateFromMenu")}: ${t("menu")} → "${t("generateFromMenu")}" ${currentLang==='hi'?'बटन दबाएं':'button'}. ${t("addExtraItem")}:</p>
+      <p style="font-size:13px;color:#777">${currentLang==='hi'
+        ? 'नोट: Menu Tab में सामग्री जोड़कर मेन्यू सेव करते ही उसका Indent अपने-आप बनकर Approval के लिए चला जाता है। यहां सिर्फ अतिरिक्त/मैन्युअल आइटम जोड़ें:'
+        : 'Note: Saving a Menu automatically creates its Indent and sends it for Approval. Use this only to add extra/manual items:'}</p>
       <div class="form-row">
         <div style="flex:2"><select id="indIngSelect">
           ${ingredients.map(i=>`<option value="${i.id}">${ingName(i)} (${esc(i.unit)})</option>`).join("")}
@@ -892,9 +1099,9 @@ function renderIndentItemsTable(){
   tbl.innerHTML = `<tr><th>${t("ingredients")}</th><th>${t("requiredQty")}</th><th>${t("availableStock")}</th>
     <th>${t("shortfall")}</th><th>${t("from")}</th><th></th></tr>` +
     indentDraftItems.map((row,idx)=>{
-      const ing = window.__ingredientsCache.find(i=>i.id===row.ingredientId);
+      const ing = row.ingredientId ? window.__ingredientsCache.find(i=>i.id===row.ingredientId) : null;
       return `<tr>
-        <td>${ing?ingName(ing):"?"}</td><td>${row.requiredQty}</td>
+        <td>${ing?ingName(ing):esc(row.customName||"?")}</td><td>${row.requiredQty}</td>
         <td>${(row.availableQty||0).toFixed(3)}</td>
         <td class="${row.shortfallQty>0?'shortfall':'ok-stock'}">${(row.shortfallQty||0).toFixed(3)}</td>
         <td>${row.source==="menu"?t("fromStock"):t("notInStock")}</td>
@@ -938,19 +1145,49 @@ async function renderApproval(){
     ${indents.length===0? `<p>${t("noData")}</p>` : indents.map(ind=>`
       <div class="card">
         <b>${t("date")}:</b> ${esc(ind.date)} &nbsp; <b>${currentLang==='hi'?'द्वारा':'By'}:</b> ${esc(ind.createdByName||"")}
+        <p class="hint">${currentLang==='hi' ? 'ज़रूरत अनुसार मात्रा घटाएं/बढ़ाएं, फिर स्वीकृत करें।' : 'Adjust quantity up/down as needed, then approve.'}</p>
         <table><tr><th>${t("ingredients")}</th><th>${t("requiredQty")}</th><th>${t("availableStock")}</th><th>${t("shortfall")}</th></tr>
-        ${(ind.items||[]).map(it=>{
-          const ing = ingredients.find(i=>i.id===it.ingredientId);
-          return `<tr><td>${ing?ingName(ing):"?"}</td><td>${it.requiredQty}</td><td>${(it.availableQty||0).toFixed(3)}</td>
-            <td class="${it.shortfallQty>0?'shortfall':'ok-stock'}">${(it.shortfallQty||0).toFixed(3)}</td></tr>`;
+        ${(ind.items||[]).map((it,idx)=>{
+          const ing = it.ingredientId ? ingredients.find(i=>i.id===it.ingredientId) : null;
+          const avail = it.availableQty||0;
+          return `<tr><td>${ing?ingName(ing):esc(it.customName||"?")}</td>
+            <td>${canApprove
+              ? `<input type="number" step="0.001" style="width:100px;margin:0" id="apprQty_${ind.id}_${idx}" value="${it.requiredQty}" data-avail="${avail}" oninput="recalcApprovalShortfall('${ind.id}',${idx})">`
+              : it.requiredQty}</td>
+            <td>${avail.toFixed(3)}</td>
+            <td id="apprShortfall_${ind.id}_${idx}" class="${it.shortfallQty>0?'shortfall':'ok-stock'}">${(it.shortfallQty||0).toFixed(3)}</td></tr>`;
         }).join("")}
         </table>
         ${canApprove?`<button class="btn-primary" style="width:auto" onclick="decideIndent('${ind.id}','approved')">${t("approve")}</button>
         <button class="btn-secondary" onclick="decideIndent('${ind.id}','rejected')">${t("reject")}</button>`:""}
       </div>`).join("")}`;
+  window.__approvalIndentsCache = indents;
 }
+window.recalcApprovalShortfall = function(indId, idx){
+  const input = document.getElementById(`apprQty_${indId}_${idx}`);
+  const cell = document.getElementById(`apprShortfall_${indId}_${idx}`);
+  const qty = Number(input.value)||0;
+  const avail = Number(input.dataset.avail)||0;
+  const shortfall = Math.max(0, qty-avail);
+  cell.textContent = shortfall.toFixed(3);
+  cell.className = shortfall>0 ? "shortfall" : "ok-stock";
+};
 window.decideIndent = async function(id, status){
-  await updateOne("indents", id, { status, approvedBy: currentUserDoc.uid, approvedAt: todayStr() });
+  const ind = (window.__approvalIndentsCache||[]).find(i=>i.id===id);
+  if (ind){
+    // Pick up any quantity edits the Admin made before approving/rejecting.
+    ind.items.forEach((it,idx)=>{
+      const input = document.getElementById(`apprQty_${id}_${idx}`);
+      if (input){
+        const newQty = Number(input.value)||0;
+        it.requiredQty = newQty;
+        it.shortfallQty = Math.max(0, newQty - (it.availableQty||0));
+      }
+    });
+    await updateOne("indents", id, { items: ind.items, status, approvedBy: currentUserDoc.uid, approvedAt: todayStr() });
+  } else {
+    await updateOne("indents", id, { status, approvedBy: currentUserDoc.uid, approvedAt: todayStr() });
+  }
   showToast(t("saved"),"success");
   renderApproval();
 };
@@ -969,9 +1206,9 @@ async function renderStoreIssue(){
         <b>${t("date")}:</b> ${esc(ind.date)}
         <table><tr><th>${t("ingredients")}</th><th>${t("requiredQty")}</th><th>${t("availableStock")}</th><th>${t("issueQty")}</th></tr>
         ${(ind.items||[]).map((it,idx)=>{
-          const ing = ingredients.find(i=>i.id===it.ingredientId);
+          const ing = it.ingredientId ? ingredients.find(i=>i.id===it.ingredientId) : null;
           const already = it.issuedQty || 0;
-          return `<tr><td>${ing?ingName(ing):"?"}</td><td>${it.requiredQty}</td><td>${(it.availableQty||0).toFixed(3)}</td>
+          return `<tr><td>${ing?ingName(ing):esc(it.customName||"?")}</td><td>${it.requiredQty}</td><td>${(it.availableQty||0).toFixed(3)}</td>
             <td><input type="number" step="0.001" id="issueQty_${ind.id}_${idx}" value="${already || Math.min(it.requiredQty, it.availableQty||0)}" ${canIssue?"":"disabled"}></td></tr>`;
         }).join("")}
         </table>
@@ -986,6 +1223,7 @@ window.submitStoreIssue = async function(indentId){
     const issuedQty = Number(el.value)||0;
     ind.items[idx].issuedQty = issuedQty;
     if (issuedQty < ind.items[idx].requiredQty) allFull = false;
+    if (!ind.items[idx].ingredientId) continue; // custom item — no stock/ledger to adjust
     await adjustStock(ind.items[idx].ingredientId, -issuedQty, 0);
     await addLedgerEntry({ ingredientId: ind.items[idx].ingredientId, type:"out", qty:issuedQty,
       refType:"indent", refId: indentId });
@@ -1008,11 +1246,10 @@ async function renderProcurement(){
     <div class="section-title">${t("procurement")} — ${t("purchaseOrder")}</div>
     ${canAdd?`<div class="card">
       <div class="form-row">
-        <div><label>${t("supplier")}</label><select id="poSupplier">
-          ${suppliers.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("")}
-        </select></div>
+        <div><label>${t("vendorName")}</label><input id="poSupplierName" list="vendorSuggestions" placeholder="${t("vendorName")}"></div>
         <div><label>${t("date")}</label><input id="poDate" type="date" value="${todayStr()}"></div>
       </div>
+      <datalist id="vendorSuggestions">${suppliers.map(s=>`<option value="${esc(s.name)}">`).join("")}</datalist>
       <div class="form-row">
         <div style="flex:2"><select id="poIngSelect">${ingredients.map(i=>`<option value="${i.id}">${ingName(i)}</option>`).join("")}</select></div>
         <div><label>${t("requiredQty")}</label><input id="poQty" type="number" step="0.001" value="1"></div>
@@ -1024,9 +1261,8 @@ async function renderProcurement(){
     </div>`:""}
     <div class="card"><table><tr><th>${t("date")}</th><th>${t("supplier")}</th><th>${t("amount")}</th><th>${t("status")}</th><th>${t("action")}</th></tr>
     ${pos.map(p=>{
-      const supplier = suppliers.find(s=>s.id===p.supplierId);
       const total = (p.items||[]).reduce((s,it)=>s+it.qty*it.rate,0);
-      return `<tr><td>${esc(p.date)}</td><td>${supplier?esc(supplier.name):"-"}</td><td>${money(total)}</td>
+      return `<tr><td>${esc(p.date)}</td><td>${esc(p.supplierName||"-")}</td><td>${money(total)}</td>
         <td><span class="tag tag-${p.status}">${t(p.status)||p.status}</span></td>
         <td>
           <select onchange="updatePOStatus('${p.id}', this.value)">
@@ -1061,7 +1297,7 @@ window.removePOItem = function(idx){ poDraftItems.splice(idx,1); renderPOItemsTa
 window.savePO = async function(){
   if (!poDraftItems.length) return;
   await addOne("purchaseOrders", {
-    supplierId: document.getElementById("poSupplier").value,
+    supplierName: document.getElementById("poSupplierName").value.trim(),
     date: document.getElementById("poDate").value || todayStr(),
     items: poDraftItems, status:"pending"
   });
@@ -1090,10 +1326,12 @@ async function renderReceiving(){
       <div class="form-row">
         <div><label>${t("purchaseOrder")} (optional)</label><select id="recvPO">
           <option value="">--</option>
-          ${pos.map(p=>`<option value="${p.id}">${p.id.slice(0,6)} — ${(suppliers.find(s=>s.id===p.supplierId)||{}).name||""}</option>`).join("")}
+          ${pos.map(p=>`<option value="${p.id}">${p.id.slice(0,6)} — ${esc(p.supplierName||"")}</option>`).join("")}
         </select></div>
+        <div><label>${t("vendorName")}</label><input id="recvSupplierName" list="vendorSuggestions" placeholder="${t("vendorName")}"></div>
         <div><label>${t("date")}</label><input id="recvDate" type="date" value="${todayStr()}"></div>
       </div>
+      <datalist id="vendorSuggestions">${suppliers.map(s=>`<option value="${esc(s.name)}">`).join("")}</datalist>
       <div class="form-row">
         <div style="flex:2"><select id="recvIngSelect">${ingredients.map(i=>`<option value="${i.id}">${ingName(i)}</option>`).join("")}</select></div>
         <div><label>${t("requiredQty")}</label><input id="recvQty" type="number" step="0.001" value="1"></div>
@@ -1103,10 +1341,10 @@ async function renderReceiving(){
       <table id="recvItemsTable"></table>
       <button class="btn-primary" style="width:auto;margin-top:10px" onclick="saveReceiving()">${t("receiveEntry")}</button>
     </div>`:""}
-    <div class="card"><table><tr><th>${t("date")}</th><th>${t("amount")}</th></tr>
+    <div class="card"><table><tr><th>${t("date")}</th><th>${t("vendorName")}</th><th>${t("amount")}</th></tr>
     ${receivings.map(r=>{
       const total = (r.items||[]).reduce((s,it)=>s+it.qty*it.rate,0);
-      return `<tr><td>${esc(r.date)}</td><td>${money(total)}</td></tr>`;
+      return `<tr><td>${esc(r.date)}</td><td>${esc(r.supplierName||"-")}</td><td>${money(total)}</td></tr>`;
     }).join("")}
     </table></div>`;
   window.__recvDraftItems = [];
@@ -1136,8 +1374,9 @@ window.saveReceiving = async function(){
   const items = window.__recvDraftItems;
   if (!items.length) return;
   const poId = document.getElementById("recvPO").value || null;
+  const supplierName = document.getElementById("recvSupplierName").value.trim();
   const date = document.getElementById("recvDate").value || todayStr();
-  await addOne("receivings", { poId, date, items });
+  await addOne("receivings", { poId, supplierName, date, items });
   for (const it of items){
     await adjustStock(it.ingredientId, it.qty, poId ? -it.qty : 0); // moves qty from pipeline->hand if linked to PO
     await addLedgerEntry({ ingredientId: it.ingredientId, type:"in", qty: it.qty,
@@ -1210,22 +1449,21 @@ window.saveDistribution = async function(){
 // REPORTS — menu-wise expenditure, per-thali cost, stock ledger, pending indents
 // ==========================================================================
 async function renderReports(){
-  const [menus, ingredients, ledger, indents] = await Promise.all([
-    listAll("menus"), listAll("ingredients"), listAll("stockLedger"), listAll("indents")
+  const [menus, ingredients, ledger, indents, rateMap] = await Promise.all([
+    listAll("menus"), listAll("ingredients"), listAll("stockLedger"), listAll("indents"), getReceivingRateMap()
   ]);
-  const ingRateMap = {}; ingredients.forEach(i=> ingRateMap[i.id]=i.rate||0);
   const menuCosts = menus.map(m=>{
-    const cost = (m.items||[]).reduce((s,it)=> s + it.qtyPerThali*(m.numThalis||0)*(ingRateMap[it.ingredientId]||0), 0);
-    return { ...m, cost, perThali: m.numThalis ? cost/m.numThalis : 0 };
+    const {cost, perThali, perPerson} = computeMenuCost(m, rateMap);
+    return { ...m, cost, perThali, perPerson };
   });
   const pendingIndents = indents.filter(i=>i.status==="pending");
   main().innerHTML = `
     <div class="section-title">${t("menuWiseExpenditure")}</div>
     <div class="card">
       <button class="small-btn" onclick="exportMenuCostsCSV()">${t("exportExcel")}</button>
-      <table><tr><th>${t("date")}</th><th>${t("menuName")}</th><th>${t("numThalis")}</th><th>${t("total")}</th><th>${t("perThaliExpenditure")}</th></tr>
+      <table><tr><th>${t("date")}</th><th>${t("menuName")}</th><th>${t("numThalis")}</th><th>${t("numPersons")}</th><th>${t("total")}</th><th>${t("perThaliExpenditure")}</th><th>${t("perPersonExpenditure")}</th></tr>
       ${menuCosts.map(m=>`<tr><td>${esc(m.date)}</td><td>${esc(currentLang==="hi"?m.name_hi:m.name_en)}</td>
-        <td>${esc(m.numThalis)}</td><td>${money(m.cost)}</td><td>${money(m.perThali.toFixed(2))}</td></tr>`).join("")}
+        <td>${esc(m.numThalis)}</td><td>${esc(m.numPersons||"-")}</td><td>${money(m.cost)}</td><td>${money(m.perThali.toFixed(2))}</td><td>${money(m.perPerson.toFixed(2))}</td></tr>`).join("")}
       </table>
     </div>
     <div class="card">
@@ -1246,15 +1484,87 @@ async function renderReports(){
   window.__menuCostsForExport = menuCosts;
 }
 window.exportMenuCostsCSV = function(){
-  const rows = [["Date","Menu","Thalis","Total Cost","Per Thali Cost"]];
-  (window.__menuCostsForExport||[]).forEach(m=> rows.push([m.date, m.name_en||m.name_hi, m.numThalis, m.cost.toFixed(2), m.perThali.toFixed(2)]));
+  const rows = [["Date","Menu","Thalis","Persons","Total Cost","Per Thali Cost","Per Person Cost"]];
+  (window.__menuCostsForExport||[]).forEach(m=> rows.push([m.date, m.name_en||m.name_hi, m.numThalis, m.numPersons||"", m.cost.toFixed(2), m.perThali.toFixed(2), m.perPerson.toFixed(2)]));
   csvExport("menu_wise_expenditure.csv", rows);
+};
+
+// ==========================================================================
+// PER PERSON EXPENDITURE — dedicated report, date-range filterable
+// Rate basis: most recent Receiving/Purchase tab rate per ingredient.
+// ==========================================================================
+async function renderPerPersonExpenditure(){
+  const fromEl = document.getElementById("ppeFrom");
+  const toEl = document.getElementById("ppeTo");
+  const fromDate = fromEl ? fromEl.value : "";
+  const toDate = toEl ? toEl.value : "";
+
+  const [menus, rateMap] = await Promise.all([listAll("menus"), getReceivingRateMap()]);
+  let rows = menus.map(m=>({ ...m, ...computeMenuCost(m, rateMap) }));
+  if (fromDate) rows = rows.filter(r => (r.date||"") >= fromDate);
+  if (toDate) rows = rows.filter(r => (r.date||"") <= toDate);
+  rows.sort((a,b)=> (b.date||"").localeCompare(a.date||""));
+
+  const totalCost = rows.reduce((s,r)=>s+r.cost,0);
+  const totalPersons = rows.reduce((s,r)=>s+(Number(r.numPersons)||0),0);
+  const totalThalis = rows.reduce((s,r)=>s+(Number(r.numThalis)||0),0);
+  const overallPerPerson = totalPersons ? totalCost/totalPersons : 0;
+  const overallPerThali = totalThalis ? totalCost/totalThalis : 0;
+
+  main().innerHTML = `
+    <div class="section-title">${t("perPersonExp")}</div>
+    <div class="card">
+      <div class="form-row">
+        <div><label>${currentLang==='hi'?'दिनांक से':'From Date'}</label><input type="date" id="ppeFrom" value="${esc(fromDate)}" onchange="renderPerPersonExpenditure()"></div>
+        <div><label>${currentLang==='hi'?'दिनांक तक':'To Date'}</label><input type="date" id="ppeTo" value="${esc(toDate)}" onchange="renderPerPersonExpenditure()"></div>
+      </div>
+    </div>
+    <div class="kpi-grid">
+      ${kpiCard(money(totalCost.toFixed(2)), "todaysExpenditure")}
+      ${kpiCard(money(overallPerThali.toFixed(2)), "perThaliExpenditure")}
+      ${kpiCard(money(overallPerPerson.toFixed(2)), "perPersonExpenditure")}
+    </div>
+    <div class="card">
+      <button class="small-btn" onclick="exportPerPersonCSV()">${t("exportExcel")}</button>
+      <table><tr><th>${t("date")}</th><th>${t("menuName")}</th><th>${t("numThalis")}</th><th>${t("numPersons")}</th>
+        <th>${t("total")}</th><th>${t("perThaliExpenditure")}</th><th>${t("perPersonExpenditure")}</th></tr>
+      ${rows.length ? rows.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(currentLang==="hi"?r.name_hi:r.name_en)}</td>
+        <td>${esc(r.numThalis)}</td><td>${esc(r.numPersons||"-")}</td><td>${money(r.cost)}</td>
+        <td>${money(r.perThali.toFixed(2))}</td><td>${money(r.perPerson.toFixed(2))}</td></tr>`).join("") : `<tr><td colspan="7">${t("noData")}</td></tr>`}
+      </table>
+    </div>`;
+  window.__ppeRowsForExport = rows;
+}
+window.exportPerPersonCSV = function(){
+  const rows = [["Date","Menu","Thalis","Persons","Total Cost","Per Thali Cost","Per Person Cost"]];
+  (window.__ppeRowsForExport||[]).forEach(r=> rows.push([r.date, r.name_en||r.name_hi, r.numThalis, r.numPersons||"", r.cost.toFixed(2), r.perThali.toFixed(2), r.perPerson.toFixed(2)]));
+  csvExport("per_person_expenditure.csv", rows);
 };
 
 // ==========================================================================
 // USERS (Admin only) — create user via secondary Firebase app instance
 // so the currently logged-in Admin session is NOT replaced.
+// Admin can assign a starting Role AND then fully customize permissions
+// per module/action — custom permissions always override the role default.
 // ==========================================================================
+function permMatrixHtml(idPrefix, existingPerms){
+  const p = existingPerms || {};
+  return `<table><tr><th>${t("module")}</th>${ACTIONS.map(a=>`<th>${t(a)||a}</th>`).join("")}</tr>
+    ${MODULES.map(m=>`<tr><td>${t(m)}</td>${ACTIONS.map(a=>
+      `<td style="text-align:center"><input type="checkbox" id="${idPrefix}_${m}_${a}" ${p[m]&&p[m][a]?"checked":""}></td>`
+    ).join("")}</tr>`).join("")}
+  </table>`;
+}
+function readPermMatrix(idPrefix){
+  const perms = {};
+  MODULES.forEach(m=>{
+    ACTIONS.forEach(a=>{
+      const el = document.getElementById(`${idPrefix}_${m}_${a}`);
+      if (el && el.checked){ perms[m] = perms[m]||{}; perms[m][a] = true; }
+    });
+  });
+  return perms;
+}
 async function renderUsers(){
   const users = await listAll("users");
   main().innerHTML = `
@@ -1265,7 +1575,7 @@ async function renderUsers(){
         <div><label>${t("email")}</label><input id="newUserEmail" type="email"></div>
         <div><label>Temp ${t("password")}</label><input id="newUserPassword" value="Kitchen@123"></div>
         <div><label>${t("role")}</label>
-          <select id="newUserRole">
+          <select id="newUserRole" onchange="prefillNewUserPerms()">
             <option value="admin">Admin</option>
             <option value="cook">Cook / कुक</option>
             <option value="storekeeper">Store Keeper / स्टोर कीपर</option>
@@ -1274,29 +1584,59 @@ async function renderUsers(){
           </select>
         </div>
       </div>
-      <button class="btn-primary" style="width:auto" onclick="createNewUser()">${t("createUser")}</button>
-      <p style="font-size:12px;color:#777">${currentLang==='hi'?
-        'नोट: कुक को मेन्यू बनाने की अनुमति केवल Admin के अनुसार मिलती है। Custom Role के लिए README.md देखें।':
-        'Note: Cook gets menu-creation rights per default role. For fully custom per-module permissions, edit the permissions field directly in Firestore users/{uid} — see README.md.'}</p>
+      <p class="hint">${currentLang==='hi'
+        ? 'ऊपर एक Role चुनें तो नीचे उसके डिफ़ॉल्ट अधिकार अपने-आप भर जाएंगे — फिर आप अपनी मर्ज़ी से किसी भी बॉक्स को टिक/अनटिक कर सकते हैं। यही अंतिम (custom) अधिकार यूज़र को मिलेंगे।'
+        : 'Pick a Role above to auto-fill its defaults below — then tick/untick any box as you like. Whatever you save here becomes the final (custom) permissions for this user.'}</p>
+      <div class="section-title" style="font-size:14px">${t("permissionsMatrix")}</div>
+      <div id="newUserPermMatrix" style="overflow-x:auto">${permMatrixHtml("newp", DEFAULT_ROLE_PERMISSIONS.cook)}</div>
+      <button class="btn-primary" style="width:auto;margin-top:10px" onclick="createNewUser()">${t("createUser")}</button>
     </div>
     <div class="card">
-      <table><tr><th>${t("name")}</th><th>${t("email")}</th><th>${t("role")}</th></tr>
-      ${users.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${esc(u.role)}</td></tr>`).join("")}
+      <table><tr><th>${t("name")}</th><th>${t("email")}</th><th>${t("role")}</th><th>${t("action")}</th></tr>
+      ${users.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${esc(u.role)}</td>
+        <td><button class="small-btn" onclick="openEditPermissions('${u.id}')">${t("editPermissions")}</button></td></tr>
+        <tr id="editRow_${u.id}" class="hidden"><td colspan="4">
+          <div class="card" style="margin:8px 0">
+            <div style="overflow-x:auto">${permMatrixHtml("editp_"+u.id, resolvePermissions(u))}</div>
+            <button class="btn-primary" style="width:auto;margin-top:10px" onclick="saveUserPermissions('${u.id}')">${t("save")}</button>
+            <button class="btn-secondary" onclick="document.getElementById('editRow_${u.id}').classList.add('hidden')">${t("cancel")}</button>
+          </div>
+        </td></tr>`).join("")}
       </table>
     </div>`;
 }
+window.prefillNewUserPerms = function(){
+  const role = document.getElementById("newUserRole").value;
+  const defaults = DEFAULT_ROLE_PERMISSIONS[role] || {};
+  MODULES.forEach(m=>{
+    ACTIONS.forEach(a=>{
+      const el = document.getElementById(`newp_${m}_${a}`);
+      if (el) el.checked = !!(defaults[m] && defaults[m][a]);
+    });
+  });
+};
+window.openEditPermissions = function(uid){
+  document.getElementById(`editRow_${uid}`).classList.remove("hidden");
+};
+window.saveUserPermissions = async function(uid){
+  const permissions = readPermMatrix("editp_"+uid);
+  await updateOne("users", uid, { permissions });
+  showToast(t("saved"),"success");
+  renderUsers();
+};
 window.createNewUser = async function(){
   const name = document.getElementById("newUserName").value.trim();
   const email = document.getElementById("newUserEmail").value.trim();
   const password = document.getElementById("newUserPassword").value;
   const role = document.getElementById("newUserRole").value;
+  const permissions = readPermMatrix("newp");
   if (!name||!email||password.length<6){ showToast("Sahi jaankari bharen (password >=6 chars)","error"); return; }
   try{
     // secondary app instance so creating a user doesn't log out the Admin
     const secondaryApp = initializeApp(firebaseApp.options, "Secondary_"+Date.now());
     const secondaryAuth = getAuth(secondaryApp);
     const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-    await setDoc(doc(db, "users", cred.user.uid), { name, email, role, permissions:{} });
+    await setDoc(doc(db, "users", cred.user.uid), { name, email, role, permissions });
     await signOut(secondaryAuth);
     showToast(t("saved"),"success");
     renderUsers();
@@ -1323,6 +1663,7 @@ const NAV_ITEMS = [
   { key:"ingredients",labelKey:"ingredients",render:renderIngredients },
   { key:"suppliers",  labelKey:"suppliers",  render:renderSuppliers },
   { key:"reports",    labelKey:"reports",    render:renderReports },
+  { key:"perPersonExp",labelKey:"perPersonExp",render:renderPerPersonExpenditure },
   { key:"users",      labelKey:"users",      render:renderUsers },
 ];
 
