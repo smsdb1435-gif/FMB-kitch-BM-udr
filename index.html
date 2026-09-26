@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FMB Kitchen Management System</title>
+<style>
+:root{
+  --primary:#c0392b; --primary-dark:#922b21; --accent:#27ae60; --bg:#f7f5f2;
+  --card:#ffffff; --text:#2c2c2c; --border:#e0dcd5; --warn:#e67e22; --danger:#c0392b;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:"Noto Sans Devanagari","Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);}
+.hidden{display:none !important;}
+button{cursor:pointer;font-family:inherit;}
+input,select,textarea{font-family:inherit;padding:8px;border:1px solid var(--border);border-radius:6px;width:100%;margin:4px 0 12px 0;font-size:14px;}
+label{font-weight:600;font-size:13px;color:#555;}
+
+/* Login */
+.login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#c0392b,#e67e22);}
+.login-box{background:var(--card);padding:36px;border-radius:14px;width:360px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.25);text-align:center;}
+.login-box h1{font-size:20px;margin-bottom:4px;}
+.lang-toggle-login{margin:8px 0 20px;}
+.lang-btn{background:none;border:none;color:var(--primary);font-weight:600;text-decoration:underline;}
+.btn-primary{background:var(--primary);color:#fff;border:none;padding:10px 16px;border-radius:8px;width:100%;font-size:15px;font-weight:600;}
+.btn-primary:hover{background:var(--primary-dark);}
+.btn-secondary{background:#eee;color:#333;border:none;padding:10px 16px;border-radius:8px;margin-left:8px;}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-small{background:#eee;border:none;padding:6px 10px;border-radius:6px;font-size:13px;margin-left:6px;}
+.error-text{color:var(--danger);font-size:13px;}
+.hint{font-size:11px;color:#999;margin-top:16px;}
+
+/* App shell */
+.app-shell{min-height:100vh;display:flex;flex-direction:column;}
+.topbar{background:var(--primary);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;position:sticky;top:0;z-index:10;}
+.topbar-left{display:flex;align-items:center;gap:10px;}
+.brand{font-weight:700;font-size:17px;}
+.hamburger{background:none;border:none;color:#fff;font-size:22px;display:none;}
+.topbar-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.user-info{font-size:13px;background:rgba(255,255,255,.15);padding:4px 10px;border-radius:12px;}
+.lang-btn{color:#fff;background:rgba(255,255,255,.15);border:none;padding:5px 8px;border-radius:6px;font-size:12px;}
+
+.body-wrap{display:flex;flex:1;}
+.sidebar{width:230px;background:#2c2c2c;color:#eee;min-height:100%;padding:10px 0;}
+.sidebar ul{list-style:none;margin:0;padding:0;}
+.sidebar li{padding:12px 20px;cursor:pointer;font-size:14px;border-left:4px solid transparent;}
+.sidebar li:hover{background:#3a3a3a;}
+.sidebar li.active{background:#3a3a3a;border-left-color:var(--accent);font-weight:600;}
+.main-content{flex:1;padding:20px;max-width:1100px;}
+
+/* Cards / tables */
+.card{background:var(--card);border-radius:10px;padding:18px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px;}
+.kpi-card{background:var(--card);border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-top:4px solid var(--primary);}
+.kpi-card .kpi-value{font-size:26px;font-weight:700;color:var(--primary-dark);}
+.kpi-card .kpi-label{font-size:12px;color:#777;}
+
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;}
+th{background:#f0ede8;font-size:12px;text-transform:uppercase;color:#666;}
+tr:hover{background:#fafafa;}
+.tag{padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;}
+.tag-veg{background:#eafaf1;color:#1e8449;border:1px solid #1e8449;}
+.tag-nonveg{background:#fdedec;color:#a93226;border:1px solid #a93226;}
+.tag-pending{background:#fef5e7;color:#b9770e;}
+.tag-approved{background:#eafaf1;color:#1e8449;}
+.tag-rejected{background:#fdedec;color:#a93226;}
+.tag-partial{background:#eaf2fb;color:#2e5f9e;}
+.tag-received,.tag-full{background:#eafaf1;color:#1e8449;}
+
+.form-row{display:flex;gap:12px;flex-wrap:wrap;}
+.form-row > div{flex:1;min-width:160px;}
+.section-title{font-size:16px;font-weight:700;margin-bottom:10px;color:var(--primary-dark);}
+.small-btn{padding:4px 10px;font-size:12px;border-radius:6px;border:1px solid var(--border);background:#fff;}
+.add-row-btn{background:var(--accent);color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:13px;}
+.remove-row-btn{background:var(--danger);color:#fff;border:none;padding:4px 8px;border-radius:6px;font-size:12px;}
+.shortfall{color:var(--danger);font-weight:700;}
+.ok-stock{color:var(--accent);font-weight:700;}
+
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:100;}
+.modal-box{background:#fff;padding:24px;border-radius:12px;width:360px;max-width:90vw;}
+
+.toast{position:fixed;bottom:20px;right:20px;background:#333;color:#fff;padding:12px 18px;border-radius:8px;z-index:200;font-size:14px;}
+.toast.error{background:var(--danger);}
+.toast.success{background:var(--accent);}
+
+@media(max-width:768px){
+  .hamburger{display:block;}
+  .sidebar{position:fixed;left:-230px;top:52px;bottom:0;transition:left .2s;z-index:50;}
+  .sidebar.open{left:0;}
+  .main-content{padding:12px;}
+}
+
+</style>
+</head>
+<body>
+
+<!-- ===================== LOGIN SCREEN ===================== -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-box">
+    <h1>🍲 FMB Kitchen Management System</h1>
+    <p class="lang-toggle-login">
+      <button onclick="setLang('hi')" class="lang-btn" id="langHiBtn">हिंदी</button> |
+      <button onclick="setLang('en')" class="lang-btn" id="langEnBtn">English</button>
+    </p>
+    <form id="loginForm">
+      <label data-i18n="email">Email</label>
+      <input type="email" id="loginEmail" required autocomplete="username">
+      <label data-i18n="password">Password / पासवर्ड</label>
+      <input type="password" id="loginPassword" required autocomplete="current-password">
+      <button type="submit" class="btn-primary" data-i18n="loginBtn">Login / लॉगिन करें</button>
+    </form>
+    <p><a href="#" onclick="showForgotPassword()" data-i18n="forgotPassword">Forgot Password? / पासवर्ड भूल गए?</a></p>
+    <p id="loginError" class="error-text"></p>
+    <p class="hint" data-i18n="firstTimeHint">First time setup? See README.md to create the first Admin user.</p>
+  </div>
+</div>
+
+<!-- ===================== FORGOT PASSWORD MODAL ===================== -->
+<div id="forgotModal" class="modal hidden">
+  <div class="modal-box">
+    <h3 data-i18n="resetPasswordTitle">Reset Password / पासवर्ड रीसेट करें</h3>
+    <input type="email" id="resetEmail" placeholder="Email" data-i18n-placeholder="email">
+    <button class="btn-primary" onclick="sendResetEmail()" data-i18n="sendResetLink">Send Reset Link / लिंक भेजें</button>
+    <button class="btn-secondary" onclick="closeModal('forgotModal')" data-i18n="cancel">Cancel / रद्द करें</button>
+    <p id="resetMsg"></p>
+  </div>
+</div>
+
+<!-- ===================== MAIN APP (after login) ===================== -->
+<div id="appShell" class="app-shell hidden">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button id="hamburgerBtn" class="hamburger" onclick="toggleSidebar()">☰</button>
+      <span class="brand">🍲 FMB Kitchen</span>
+    </div>
+    <div class="topbar-right">
+      <span id="userInfo" class="user-info"></span>
+      <button onclick="setLang('hi')" class="lang-btn">हिंदी</button>
+      <button onclick="setLang('en')" class="lang-btn">EN</button>
+      <button class="btn-small" onclick="showChangePassword()" data-i18n="changePassword">Change Password</button>
+      <button class="btn-small btn-danger" onclick="logout()" data-i18n="logout">Logout</button>
+    </div>
+  </header>
+
+  <div class="body-wrap">
+    <nav id="sidebar" class="sidebar">
+      <ul id="navList"><!-- populated by JS based on permissions --></ul>
+    </nav>
+
+    <main id="mainContent" class="main-content">
+      <!-- module content injected here by JS -->
+    </main>
+  </div>
+</div>
+
+<!-- ===================== CHANGE PASSWORD MODAL ===================== -->
+<div id="changePwModal" class="modal hidden">
+  <div class="modal-box">
+    <h3 data-i18n="changePassword">Change Password / पासवर्ड बदलें</h3>
+    <label data-i18n="newPassword">New Password / नया पासवर्ड</label>
+    <input type="password" id="newPassword">
+    <button class="btn-primary" onclick="changeMyPassword()" data-i18n="save">Save / सहेजें</button>
+    <button class="btn-secondary" onclick="closeModal('changePwModal')" data-i18n="cancel">Cancel / रद्द करें</button>
+    <p id="changePwMsg"></p>
+  </div>
+</div>
+
+<!-- Generic confirm/alert container -->
+<div id="toast" class="toast hidden"></div>
+
+<script type="module">
+// ==========================================================================
+// FMB Kitchen Management System — single-file build
+// Sab kuch (config, database helpers, translations, permissions, auth,
+// screens/modules, navigation) is ek hi script mein combine kiya gaya hai
+// taaki sirf ek hi index.html file GitHub par upload karke deploy kiya ja sake.
+// ==========================================================================
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
+  updatePassword, onAuthStateChanged, createUserWithEmailAndPassword
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc,
+  deleteDoc, query, where, orderBy, serverTimestamp, runTransaction
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ---------------- Firebase config & init ----------------
+// ==========================================================================
+// FMB Kitchen Management System — Firebase Configuration
+// ==========================================================================
+// यहाँ अपने Firebase Project की जानकारी भरें (README.md के Step 2 अनुसार)।
+// Paste your own Firebase project keys here (see README.md Step 2).
+//
+// Firebase Console (https://console.firebase.google.com) में:
+//   Project Settings → General → "Your apps" → Web app → SDK config
+// से यह वैल्यूज़ कॉपी करें।
+// ==========================================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyDb6XNZ9JrVs2-aTWMA8PrfTYtaOqQf0-A",
+  authDomain: "fmb-kitche.firebaseapp.com",
+  projectId: "fmb-kitche",
+  storageBucket: "fmb-kitche.firebasestorage.app",
+  messagingSenderId: "416278625789",
+  appId: "1:416278625789:web:08d93047acdc149d446d94"
+};
+
+// Initialize once, export for every other module to import.
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
+
+// Global fallback so inline onclick="" handlers (defined in module files)
+// can be attached to window from ES modules.
+window.__FMB_READY = true;
+
+// ---------------- db.js: Firestore helpers ----------------
+// ==========================================================================
+// db.js — Generic Firestore helper functions used by every module.
+// Har module in generic functions ka use karke Firestore se data
+// padhta/likhta hai — is se code chhota aur maintain karne mein aasaan rehta hai.
+// ==========================================================================
+// ---- generic helpers -----------------------------------------------------
+async function listAll(col){
+  const snap = await getDocs(collection(db, col));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getOne(col, id){
+  const s = await getDoc(doc(db, col, id));
+  return s.exists() ? { id: s.id, ...s.data() } : null;
+}
+
+async function addOne(col, data){
+  const ref = await addDoc(collection(db, col), { ...data, createdAt: serverTimestamp() });
+  return ref.id;
+}
+
+async function setOne(col, id, data){
+  await setDoc(doc(db, col, id), data);
+  return id;
+}
+
+async function updateOne(col, id, data){
+  await updateDoc(doc(db, col, id), data);
+}
+
+async function removeOne(col, id){
+  await deleteDoc(doc(db, col, id));
+}
+
+async function listWhere(col, field, op, value){
+  const q = query(collection(db, col), where(field, op, value));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+function todayStr(){
+  return new Date().toISOString().slice(0,10);
+}
+// ---- Stock helpers ---------------------------------------------------------
+// stock collection: doc id == ingredientId, fields { qtyInHand, qtyInPipeline }
+
+async function getStockMap(){
+  const rows = await listAll("stock");
+  const map = {};
+  rows.forEach(r => map[r.id] = r);
+  return map;
+}
+
+async function adjustStock(ingredientId, deltaInHand = 0, deltaPipeline = 0){
+  const ref = doc(db, "stock", ingredientId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const cur = snap.exists() ? snap.data() : { qtyInHand: 0, qtyInPipeline: 0 };
+    const next = {
+      qtyInHand: Math.round(((cur.qtyInHand||0) + deltaInHand) * 1000) / 1000,
+      qtyInPipeline: Math.round(((cur.qtyInPipeline||0) + deltaPipeline) * 1000) / 1000
+    };
+    tx.set(ref, next, { merge: true });
+  });
+}
+
+async function addLedgerEntry(entry){
+  await addOne("stockLedger", { ...entry, date: entry.date || todayStr() });
+}
+
+// ---------------- i18n.js: Hindi/English translations ----------------
+// ==========================================================================
+// i18n.js — Hindi / English translation layer
+// ==========================================================================
+const STR = {
+  hi: {
+    email:"ईमेल", password:"पासवर्ड", loginBtn:"लॉगिन करें",
+    forgotPassword:"पासवर्ड भूल गए?", resetPasswordTitle:"पासवर्ड रीसेट करें",
+    sendResetLink:"लिंक भेजें", cancel:"रद्द करें", changePassword:"पासवर्ड बदलें",
+    newPassword:"नया पासवर्ड", save:"सहेजें", logout:"लॉगआउट",
+    firstTimeHint:"पहली बार सेटअप कर रहे हैं? पहला Admin यूजर बनाने के लिए README.md देखें।",
+    dashboard:"डैशबोर्ड", menu:"मेन्यू", ingredients:"सामग्री मास्टर", indent:"इंडेंट",
+    approval:"अप्रूवल", storeIssue:"स्टोर इश्यू", receiving:"रिसीविंग / खरीद",
+    procurement:"प्रोक्योरमेंट", distribution:"थाली वितरण", reports:"रिपोर्ट्स",
+    users:"यूज़र प्रबंधन", suppliers:"सप्लायर मास्टर",
+    todaysMenu:"आज का मेन्यू", thalisToPrepare:"आज कितनी थालियां बननी हैं",
+    thalisDistributed:"आज वितरित थालियां", todaysIndents:"आज के कुल इंडेंट",
+    pendingApproval:"पेंडिंग अप्रूवल इंडेंट", approvedIndents:"अप्रूव्ड इंडेंट",
+    pendingPurchase:"पेंडिंग परचेज़ आइटम", todaysConsumption:"आज की कुल सामग्री खपत",
+    todaysExpenditure:"आज का कुल किचन खर्च", perThaliExpenditure:"प्रति थाली खर्च",
+    addNew:"नया जोड़ें", name:"नाम", unit:"इकाई", type:"प्रकार", veg:"शाकाहारी", nonveg:"मांसाहारी",
+    category:"श्रेणी", action:"कार्य", edit:"संपादित करें", delete:"हटाएं",
+    menuName:"मेन्यू का नाम", date:"दिनांक", numThalis:"थालियों की संख्या",
+    selectIngredients:"सामग्री चुनें", qtyPerThali:"प्रति थाली मात्रा",
+    requiredQty:"आवश्यक मात्रा", availableStock:"उपलब्ध स्टॉक", shortfall:"कमी",
+    createIndent:"इंडेंट बनाएं", generateFromMenu:"मेन्यू से इंडेंट बनाएं",
+    addExtraItem:"अतिरिक्त सामग्री जोड़ें", status:"स्थिति", pending:"पेंडिंग",
+    approved:"स्वीकृत", rejected:"अस्वीकृत", approve:"स्वीकृत करें", reject:"अस्वीकार करें",
+    issueQty:"इश्यू मात्रा", issuedQty:"जारी की गई मात्रा", partial:"आंशिक", full:"पूर्ण",
+    submitIssue:"इश्यू सबमिट करें", supplier:"सप्लायर", rate:"दर", amount:"राशि",
+    purchaseOrder:"परचेज़ ऑर्डर", createPO:"PO बनाएं", ordered:"ऑर्डर किया गया",
+    partiallyReceived:"आंशिक प्राप्त", received:"प्राप्त हुआ", receiveEntry:"रिसीविंग एंट्री",
+    stockInHand:"उपलब्ध स्टॉक", stockInPipeline:"आ रहा स्टॉक (पाइपलाइन)",
+    stockLedger:"स्टॉक लेजर", preparedThalis:"तैयार थालियां", distributedThalis:"वितरित थालियां",
+    wastedThalis:"खराब/अनुपयोगी थालियां", distributionCenter:"वितरण केंद्र",
+    remainingThalis:"शेष थालियां", dailyReport:"दैनिक रिपोर्ट", createUser:"नया यूज़र बनाएं",
+    role:"रोल (भूमिका)", customRole:"कस्टम रोल बनाएं", permissions:"अधिकार",
+    view:"देखें", add:"जोड़ें", export:"एक्सपोर्ट", welcome:"स्वागत है",
+    submit:"सबमिट करें", close:"बंद करें", search:"खोजें", total:"कुल",
+    module:"मॉड्यूल", noData:"कोई डेटा उपलब्ध नहीं है", from:"स्रोत",
+    fromStock:"स्टॉक से", notInStock:"स्टॉक में उपलब्ध नहीं",
+    menuWiseExpenditure:"मेन्यू-वार खर्च", exportExcel:"Excel में एक्सपोर्ट करें",
+    accessDenied:"आपको इस पेज को देखने की अनुमति नहीं है।",
+    invalidLogin:"ईमेल या पासवर्ड गलत है।", resetLinkSent:"रीसेट लिंक भेज दिया गया है, अपना ईमेल जांचें।",
+    passwordChanged:"पासवर्ड सफलतापूर्वक बदला गया।", saved:"सफलतापूर्वक सहेजा गया।",
+  },
+  en: {
+    email:"Email", password:"Password", loginBtn:"Login",
+    forgotPassword:"Forgot Password?", resetPasswordTitle:"Reset Password",
+    sendResetLink:"Send Reset Link", cancel:"Cancel", changePassword:"Change Password",
+    newPassword:"New Password", save:"Save", logout:"Logout",
+    firstTimeHint:"First time setup? See README.md to create the first Admin user.",
+    dashboard:"Dashboard", menu:"Menu", ingredients:"Ingredient Master", indent:"Indent",
+    approval:"Approval", storeIssue:"Store Issue", receiving:"Receiving / Purchase",
+    procurement:"Procurement", distribution:"Thali Distribution", reports:"Reports",
+    users:"User Management", suppliers:"Supplier Master",
+    todaysMenu:"Today's Menu", thalisToPrepare:"Thalis to Prepare Today",
+    thalisDistributed:"Thalis Distributed Today", todaysIndents:"Today's Total Indents",
+    pendingApproval:"Pending Approval Indents", approvedIndents:"Approved Indents",
+    pendingPurchase:"Pending Purchase Items", todaysConsumption:"Today's Ingredient Consumption",
+    todaysExpenditure:"Today's Total Kitchen Expenditure", perThaliExpenditure:"Per Thali Expenditure",
+    addNew:"Add New", name:"Name", unit:"Unit", type:"Type", veg:"Veg", nonveg:"Non-Veg",
+    category:"Category", action:"Action", edit:"Edit", delete:"Delete",
+    menuName:"Menu Name", date:"Date", numThalis:"Number of Thalis",
+    selectIngredients:"Select Ingredients", qtyPerThali:"Qty per Thali",
+    requiredQty:"Required Qty", availableStock:"Available Stock", shortfall:"Shortfall",
+    createIndent:"Create Indent", generateFromMenu:"Generate Indent from Menu",
+    addExtraItem:"Add Extra Item", status:"Status", pending:"Pending",
+    approved:"Approved", rejected:"Rejected", approve:"Approve", reject:"Reject",
+    issueQty:"Issue Qty", issuedQty:"Issued Qty", partial:"Partial", full:"Full",
+    submitIssue:"Submit Issue", supplier:"Supplier", rate:"Rate", amount:"Amount",
+    purchaseOrder:"Purchase Order", createPO:"Create PO", ordered:"Ordered",
+    partiallyReceived:"Partially Received", received:"Received", receiveEntry:"Receiving Entry",
+    stockInHand:"Stock In Hand", stockInPipeline:"Stock In Pipeline",
+    stockLedger:"Stock Ledger", preparedThalis:"Prepared Thalis", distributedThalis:"Distributed Thalis",
+    wastedThalis:"Wasted/Unusable Thalis", distributionCenter:"Distribution Center",
+    remainingThalis:"Remaining Thalis", dailyReport:"Daily Report", createUser:"Create User",
+    role:"Role", customRole:"Create Custom Role", permissions:"Permissions",
+    view:"View", add:"Add", export:"Export", welcome:"Welcome",
+    submit:"Submit", close:"Close", search:"Search", total:"Total",
+    module:"Module", noData:"No data available", from:"Source",
+    fromStock:"From Stock", notInStock:"Not in Stock",
+    menuWiseExpenditure:"Menu-wise Expenditure", exportExcel:"Export to Excel",
+    accessDenied:"You do not have permission to view this page.",
+    invalidLogin:"Invalid email or password.", resetLinkSent:"Reset link sent, please check your email.",
+    passwordChanged:"Password changed successfully.", saved:"Saved successfully.",
+  }
+};
+
+let currentLang = localStorage.getItem("fmb_lang") || "hi";
+
+function t(key){
+  return (STR[currentLang] && STR[currentLang][key]) || (STR.en[key]) || key;
+}
+
+function applyStaticTranslations(){
+  document.querySelectorAll("[data-i18n]").forEach(el=>{
+    el.textContent = t(el.getAttribute("data-i18n"));
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(el=>{
+    el.placeholder = t(el.getAttribute("data-i18n-placeholder"));
+  });
+  document.documentElement.lang = currentLang;
+}
+
+window.setLang = function(lang){
+  currentLang = lang;
+  localStorage.setItem("fmb_lang", lang);
+  applyStaticTranslations();
+  if (window.renderCurrentModule) window.renderCurrentModule();
+};
+
+applyStaticTranslations();
+
+// ---------------- permissions.js: Roles & permissions ----------------
+// ==========================================================================
+// permissions.js — Roles, default permission matrix, and access checks.
+//
+// Har module ke liye 6 action types: view, add, edit, approve, issue, export
+// Admin har Custom Role ke liye in 6 actions ko alag-alag ON/OFF kar sakta hai.
+// ==========================================================================
+
+const MODULES = [
+  "dashboard","ingredients","suppliers","menu","indent","approval",
+  "storeIssue","receiving","procurement","distribution","reports","users"
+];
+const ACTIONS = ["view","add","edit","approve","issue","delete","export"];
+
+// Built-in default roles (Admin can still override per-user with custom roles)
+const DEFAULT_ROLE_PERMISSIONS = {
+  admin: allTrueForAllModules(),
+  cook: {
+    dashboard:{view:true},
+    menu:{view:true,add:true,edit:true},          // only if admin grants "canCreateMenu" flag on user
+    indent:{view:true},
+  },
+  storekeeper: {
+    dashboard:{view:true},
+    approval:{view:true},
+    storeIssue:{view:true,issue:true,edit:true},
+    receiving:{view:true,add:true},
+    reports:{view:true},
+  },
+  procurement: {
+    dashboard:{view:true},
+    indent:{view:true},
+    procurement:{view:true,add:true,edit:true},
+    suppliers:{view:true,add:true,edit:true},
+    reports:{view:true,export:true},
+  },
+  distribution: {
+    dashboard:{view:true},
+    distribution:{view:true,add:true,edit:true},
+    reports:{view:true},
+  }
+};
+
+function allTrueForAllModules(){
+  const p = {};
+  MODULES.forEach(m=>{ p[m] = {}; ACTIONS.forEach(a=> p[m][a] = true); });
+  return p;
+}
+
+/**
+ * Resolve the effective permission object for a user.
+ * user.permissions (custom, stored in Firestore users/{uid}) always wins;
+ * otherwise fall back to DEFAULT_ROLE_PERMISSIONS[user.role].
+ */
+function resolvePermissions(user){
+  if (!user) return {};
+  if (user.permissions && Object.keys(user.permissions).length){
+    return user.permissions;
+  }
+  return DEFAULT_ROLE_PERMISSIONS[user.role] || {};
+}
+
+function can(user, module, action){
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  const perms = resolvePermissions(user);
+  return !!(perms[module] && perms[module][action]);
+}
+
+const MODULE_LABEL_KEY = {
+  dashboard:"dashboard", ingredients:"ingredients", suppliers:"suppliers",
+  menu:"menu", indent:"indent", approval:"approval", storeIssue:"storeIssue",
+  receiving:"receiving", procurement:"procurement", distribution:"distribution",
+  reports:"reports", users:"users"
+};
+
+// ---------------- auth.js: Login/logout/password ----------------
+// ==========================================================================
+// auth.js — Firebase Authentication wiring (login/logout/password reset)
+// ==========================================================================
+let currentUser = null;      // Firebase auth user object
+let currentUserDoc = null;   // Firestore users/{uid} profile (role, permissions, name)
+
+function showToast(msg, type=""){
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = "toast " + type;
+  setTimeout(()=> el.className = "toast hidden", 3500);
+}
+window.showToast = showToast;
+
+// ---- Login form ----
+document.addEventListener("submit", async (e)=>{
+  if (e.target.id !== "loginForm") return;
+  e.preventDefault();
+  const email = document.getElementById("loginEmail").value.trim();
+  const pw = document.getElementById("loginPassword").value;
+  const errEl = document.getElementById("loginError");
+  errEl.textContent = "";
+  try{
+    await signInWithEmailAndPassword(auth, email, pw);
+    // onAuthStateChanged below will take over UI transition
+  }catch(err){
+    console.error(err);
+    errEl.textContent = t("invalidLogin");
+  }
+});
+
+onAuthStateChanged(auth, async (user)=>{
+  currentUser = user;
+  if (user){
+    const snap = await getDoc(doc(db, "users", user.uid));
+    if (snap.exists()){
+      currentUserDoc = { uid:user.uid, email:user.email, ...snap.data() };
+    } else {
+      // User exists in Firebase Auth but has no profile doc yet.
+      // This happens right after Admin creates them in Firebase Console manually
+      // before adding their Firestore profile — block access and explain.
+      currentUserDoc = { uid:user.uid, email:user.email, role:"none", permissions:{} };
+      showToast("यूज़र प्रोफाइल नहीं मिली। Admin से संपर्क करें। / User profile not found. Contact Admin.", "error");
+    }
+    window.currentUserDoc = currentUserDoc;
+    document.getElementById("loginScreen").classList.add("hidden");
+    document.getElementById("appShell").classList.remove("hidden");
+    document.getElementById("userInfo").textContent =
+      `${currentUserDoc.name || user.email} (${currentUserDoc.role || "?"})`;
+    if (window.initAppUI) window.initAppUI();
+  } else {
+    currentUserDoc = null;
+    window.currentUserDoc = null;
+    document.getElementById("appShell").classList.add("hidden");
+    document.getElementById("loginScreen").classList.remove("hidden");
+  }
+});
+
+window.logout = async function(){
+  await signOut(auth);
+};
+
+window.showForgotPassword = function(){
+  document.getElementById("forgotModal").classList.remove("hidden");
+};
+window.closeModal = function(id){
+  document.getElementById(id).classList.add("hidden");
+};
+window.sendResetEmail = async function(){
+  const email = document.getElementById("resetEmail").value.trim();
+  const msgEl = document.getElementById("resetMsg");
+  try{
+    await sendPasswordResetEmail(auth, email);
+    msgEl.textContent = t("resetLinkSent");
+  }catch(err){
+    msgEl.textContent = err.message;
+  }
+};
+
+window.showChangePassword = function(){
+  document.getElementById("changePwModal").classList.remove("hidden");
+};
+window.changeMyPassword = async function(){
+  const pw = document.getElementById("newPassword").value;
+  const msgEl = document.getElementById("changePwMsg");
+  if (pw.length < 6){
+    msgEl.textContent = "Password kam se kam 6 characters ka hona chahiye.";
+    return;
+  }
+  try{
+    await updatePassword(auth.currentUser, pw);
+    msgEl.textContent = t("passwordChanged");
+    setTimeout(()=> window.closeModal("changePwModal"), 1200);
+  }catch(err){
+    msgEl.textContent = "Please logout/login again then retry (security requirement). " + err.message;
+  }
+};
+
+// ---------------- modules.js: All screens ----------------
+// ==========================================================================
+// modules.js — All screen/module logic in one file for simplicity.
+// Har function ek module ka HTML #mainContent me render karta hai aur
+// uske actions (save/approve/issue/etc.) ko window par attach karta hai
+// taaki HTML ke inline onclick="" unhe call kar sake.
+// ==========================================================================
+const main = () => document.getElementById("mainContent");
+const esc = (s) => (s===undefined||s===null) ? "" : String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money = (n) => "₹" + (Number(n||0)).toLocaleString("en-IN", {maximumFractionDigits:2});
+const ingName = (ing) => currentLang === "hi" ? (ing.name_hi || ing.name_en) : (ing.name_en || ing.name_hi);
+
+function kpiCard(value, labelKey){
+  return `<div class="kpi-card"><div class="kpi-value">${esc(value)}</div><div class="kpi-label">${t(labelKey)}</div></div>`;
+}
+
+function csvExport(filename, rows){
+  const csv = rows.map(r => r.map(c => `"${String(c===undefined?"":c).replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8;"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+window.csvExport = csvExport;
+
+// ==========================================================================
+// DASHBOARD
+// ==========================================================================
+async function renderDashboard(){
+  main().innerHTML = `<p>Loading...</p>`;
+  const today = todayStr();
+  const [menus, indents, distribution, ledger, pos] = await Promise.all([
+    listWhere("menus","date","==",today),
+    listAll("indents"),
+    listWhere("distribution","date","==",today),
+    listWhere("stockLedger","date","==",today),
+    listAll("purchaseOrders")
+  ]);
+  const todaysIndents = indents.filter(i=>i.date===today);
+  const pendingApproval = indents.filter(i=>i.status==="pending").length;
+  const approvedIndents = indents.filter(i=>i.status==="approved").length;
+  const pendingPurchaseItems = pos.filter(p=>p.status==="pending"||p.status==="ordered")
+      .reduce((s,p)=> s + (p.items?p.items.length:0), 0);
+  const thalisToPrepare = menus.reduce((s,m)=> s + (Number(m.numThalis)||0), 0);
+  const distToday = distribution[0] || {distributedThalis:0, preparedThalis:0};
+  const consumptionQty = ledger.filter(l=>l.type==="out").reduce((s,l)=> s + Number(l.qty||0), 0);
+  const expenditureToday = ledger.filter(l=>l.type==="in").reduce((s,l)=> s + Number(l.amount||0), 0);
+  const perThali = distToday.distributedThalis ? (expenditureToday / distToday.distributedThalis) : 0;
+
+  main().innerHTML = `
+    <div class="section-title">${t("dashboard")} — ${today}</div>
+    <div class="kpi-grid">
+      ${kpiCard(thalisToPrepare, "thalisToPrepare")}
+      ${kpiCard(distToday.distributedThalis||0, "thalisDistributed")}
+      ${kpiCard(todaysIndents.length, "todaysIndents")}
+      ${kpiCard(pendingApproval, "pendingApproval")}
+      ${kpiCard(approvedIndents, "approvedIndents")}
+      ${kpiCard(pendingPurchaseItems, "pendingPurchase")}
+      ${kpiCard(consumptionQty.toFixed(2), "todaysConsumption")}
+      ${kpiCard(money(expenditureToday), "todaysExpenditure")}
+      ${kpiCard(money(perThali.toFixed(2)), "perThaliExpenditure")}
+    </div>
+    <div class="card">
+      <div class="section-title">${t("todaysMenu")}</div>
+      ${menus.length ? `<table><tr><th>${t("menuName")}</th><th>${t("numThalis")}</th></tr>
+        ${menus.map(m=>`<tr><td>${esc(currentLang==="hi"?m.name_hi:m.name_en)}</td><td>${esc(m.numThalis)}</td></tr>`).join("")}
+      </table>` : `<p>${t("noData")}</p>`}
+    </div>`;
+}
+
+// ==========================================================================
+// INGREDIENTS MASTER
+// ==========================================================================
+async function renderIngredients(){
+  const items = await listAll("ingredients");
+  const canAdd = can(currentUserDoc, "ingredients", "add");
+  main().innerHTML = `
+    <div class="section-title">${t("ingredients")}</div>
+    ${canAdd ? `
+    <div class="card">
+      <div class="form-row">
+        <div><label>${t("name")} (Hindi)</label><input id="ingNameHi"></div>
+        <div><label>${t("name")} (English)</label><input id="ingNameEn"></div>
+        <div><label>${t("unit")} (kg/ltr/pc)</label><input id="ingUnit" placeholder="kg"></div>
+        <div><label>${t("type")}</label>
+          <select id="ingType"><option value="veg">${t("veg")}</option><option value="nonveg">${t("nonveg")}</option></select>
+        </div>
+        <div><label>${t("category")}</label><input id="ingCategory" placeholder="Vegetable / Grain / Spice / Dairy / Meat"></div>
+        <div><label>Est. Rate (₹/unit)</label><input id="ingRate" type="number" step="0.01"></div>
+      </div>
+      <button class="btn-primary" style="width:auto" onclick="saveIngredient()">${t("addNew")}</button>
+    </div>` : ""}
+    <div class="card">
+      <table><tr><th>${t("name")}</th><th>${t("unit")}</th><th>${t("type")}</th><th>${t("category")}</th><th>Rate</th>${canAdd?`<th>${t("action")}</th>`:""}</tr>
+      ${items.map(i=>`<tr>
+        <td>${esc(i.name_hi)} / ${esc(i.name_en)}</td><td>${esc(i.unit)}</td>
+        <td><span class="tag ${i.type==='veg'?'tag-veg':'tag-nonveg'}">${t(i.type)}</span></td>
+        <td>${esc(i.category||"-")}</td><td>${money(i.rate)}</td>
+        ${canAdd?`<td><button class="small-btn" onclick="deleteIngredient('${i.id}')">${t("delete")}</button></td>`:""}
+      </tr>`).join("")}
+      </table>
+    </div>`;
+}
+window.saveIngredient = async function(){
+  const data = {
+    name_hi: document.getElementById("ingNameHi").value.trim(),
+    name_en: document.getElementById("ingNameEn").value.trim(),
+    unit: document.getElementById("ingUnit").value.trim() || "kg",
+    type: document.getElementById("ingType").value,
+    category: document.getElementById("ingCategory").value.trim(),
+    rate: Number(document.getElementById("ingRate").value)||0
+  };
+  if (!data.name_hi && !data.name_en){ showToast("Naam bharen","error"); return; }
+  const id = await addOne("ingredients", data);
+  await setOne("stock", id, { qtyInHand:0, qtyInPipeline:0 });
+  showToast(t("saved"),"success");
+  renderIngredients();
+};
+window.deleteIngredient = async function(id){
+  if (!confirm("Delete?")) return;
+  await removeOne("ingredients", id);
+  renderIngredients();
+};
+
+// ==========================================================================
+// SUPPLIERS MASTER
+// ==========================================================================
+async function renderSuppliers(){
+  const items = await listAll("suppliers");
+  const canAdd = can(currentUserDoc, "suppliers", "add");
+  main().innerHTML = `
+    <div class="section-title">${t("suppliers")}</div>
+    ${canAdd ? `<div class="card">
+      <div class="form-row">
+        <div><label>${t("name")}</label><input id="supName"></div>
+        <div><label>Contact</label><input id="supContact"></div>
+        <div><label>Address</label><input id="supAddress"></div>
+      </div>
+      <button class="btn-primary" style="width:auto" onclick="saveSupplier()">${t("addNew")}</button>
+    </div>`:""}
+    <div class="card"><table><tr><th>${t("name")}</th><th>Contact</th><th>Address</th></tr>
+      ${items.map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(s.contact)}</td><td>${esc(s.address)}</td></tr>`).join("")}
+    </table></div>`;
+}
+window.saveSupplier = async function(){
+  const data = {
+    name: document.getElementById("supName").value.trim(),
+    contact: document.getElementById("supContact").value.trim(),
+    address: document.getElementById("supAddress").value.trim()
+  };
+  if (!data.name) return;
+  await addOne("suppliers", data);
+  showToast(t("saved"),"success");
+  renderSuppliers();
+};
+
+// ==========================================================================
+// MENU — auto calculate requirement + fetch stock
+// ==========================================================================
+let menuDraftItems = [];
+async function renderMenu(){
+  const [menus, ingredients] = await Promise.all([listAll("menus"), listAll("ingredients")]);
+  const canAdd = can(currentUserDoc, "menu", "add");
+  menus.sort((a,b)=> (b.date||"").localeCompare(a.date||""));
+
+  main().innerHTML = `
+    <div class="section-title">${t("menu")}</div>
+    ${canAdd ? `<div class="card">
+      <div class="form-row">
+        <div><label>${t("date")}</label><input id="menuDate" type="date" value="${todayStr()}"></div>
+        <div><label>${t("menuName")} (Hindi)</label><input id="menuNameHi"></div>
+        <div><label>${t("menuName")} (English)</label><input id="menuNameEn"></div>
+        <div><label>${t("numThalis")}</label><input id="menuThalis" type="number" min="1" value="100" oninput="recalcMenuQty()"></div>
+      </div>
+      <label>${t("selectIngredients")}</label>
+      <div class="form-row">
+        <div style="flex:2">
+          <select id="menuIngSelect">
+            ${ingredients.map(i=>`<option value="${i.id}">${ingName(i)} (${esc(i.unit)}) — <span>${t(i.type)}</span></option>`).join("")}
+          </select>
+        </div>
+        <div><label>${t("qtyPerThali")}</label><input id="menuIngQtyPerThali" type="number" step="0.001" value="0.1"></div>
+        <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addMenuIngredient()">${t("addNew")}</button></div>
+      </div>
+      <table id="menuItemsTable"><tr>
+        <th>${t("ingredients")}</th><th>${t("qtyPerThali")}</th><th>${t("requiredQty")}</th>
+        <th>${t("availableStock")}</th><th>${t("shortfall")}</th><th></th>
+      </tr></table>
+      <button class="btn-primary" style="width:auto;margin-top:14px" onclick="saveMenu()">${t("save")}</button>
+    </div>` : ""}
+
+    <div class="card">
+      <table><tr><th>${t("date")}</th><th>${t("menuName")}</th><th>${t("numThalis")}</th><th>${t("action")}</th></tr>
+        ${menus.map(m=>`<tr>
+          <td>${esc(m.date)}</td><td>${esc(currentLang==="hi"?m.name_hi:m.name_en)}</td><td>${esc(m.numThalis)}</td>
+          <td>${can(currentUserDoc,"indent","add") ? `<button class="small-btn" onclick="generateIndentFromMenu('${m.id}')">${t("generateFromMenu")}</button>`:""}</td>
+        </tr>`).join("")}
+      </table>
+    </div>`;
+
+  window.__ingredientsCache = ingredients;
+  window.__stockCache = await getStockMap();
+  menuDraftItems = [];
+  renderMenuItemsTable();
+}
+
+function renderMenuItemsTable(){
+  const tbl = document.getElementById("menuItemsTable");
+  if (!tbl) return;
+  const thalis = Number(document.getElementById("menuThalis")?.value)||0;
+  tbl.innerHTML = `<tr>
+    <th>${t("ingredients")}</th><th>${t("qtyPerThali")}</th><th>${t("requiredQty")}</th>
+    <th>${t("availableStock")}</th><th>${t("shortfall")}</th><th></th></tr>` +
+    menuDraftItems.map((row,idx)=>{
+      const ing = window.__ingredientsCache.find(i=>i.id===row.ingredientId);
+      const required = row.qtyPerThali * thalis;
+      const avail = (window.__stockCache[row.ingredientId]?.qtyInHand) || 0;
+      const shortfall = Math.max(0, required - avail);
+      row.requiredQty = required; row.availableQty = avail; row.shortfallQty = shortfall;
+      return `<tr>
+        <td>${ing?ingName(ing):"?"}</td><td>${row.qtyPerThali}</td>
+        <td>${required.toFixed(3)}</td><td>${avail.toFixed(3)}</td>
+        <td class="${shortfall>0?'shortfall':'ok-stock'}">${shortfall.toFixed(3)}</td>
+        <td><button class="remove-row-btn" onclick="removeMenuIngredient(${idx})">✕</button></td>
+      </tr>`;
+    }).join("");
+}
+window.recalcMenuQty = renderMenuItemsTable;
+window.addMenuIngredient = function(){
+  const ingredientId = document.getElementById("menuIngSelect").value;
+  const qtyPerThali = Number(document.getElementById("menuIngQtyPerThali").value)||0;
+  if (!ingredientId || qtyPerThali<=0) return;
+  menuDraftItems.push({ ingredientId, qtyPerThali });
+  renderMenuItemsTable();
+};
+window.removeMenuIngredient = function(idx){
+  menuDraftItems.splice(idx,1);
+  renderMenuItemsTable();
+};
+window.saveMenu = async function(){
+  if (!menuDraftItems.length){ showToast("Kam se kam ek ingredient jodein","error"); return; }
+  const data = {
+    date: document.getElementById("menuDate").value || todayStr(),
+    name_hi: document.getElementById("menuNameHi").value.trim(),
+    name_en: document.getElementById("menuNameEn").value.trim(),
+    numThalis: Number(document.getElementById("menuThalis").value)||0,
+    items: menuDraftItems.map(r=>({ ingredientId:r.ingredientId, qtyPerThali:r.qtyPerThali }))
+  };
+  await addOne("menus", data);
+  showToast(t("saved"),"success");
+  renderMenu();
+};
+
+// ---- Generate Indent directly from a saved menu ----
+window.generateIndentFromMenu = async function(menuId){
+  const menu = await getOne("menus", menuId);
+  if (!menu) return;
+  const stock = await getStockMap();
+  const items = menu.items.map(it=>{
+    const required = it.qtyPerThali * menu.numThalis;
+    const available = stock[it.ingredientId]?.qtyInHand || 0;
+    return {
+      ingredientId: it.ingredientId, requiredQty: required,
+      availableQty: available, shortfallQty: Math.max(0, required-available),
+      source: "menu"
+    };
+  });
+  indentDraftItems = items;
+  indentDraftMenuId = menuId;
+  window.__navigateTo("indent");
+};
+
+// ==========================================================================
+// INDENT
+// ==========================================================================
+let indentDraftItems = [];
+let indentDraftMenuId = null;
+async function renderIndent(){
+  const [indents, ingredients] = await Promise.all([listAll("indents"), listAll("ingredients")]);
+  window.__ingredientsCache = ingredients;
+  window.__stockCache = await getStockMap();
+  indents.sort((a,b)=> (b.date||"").localeCompare(a.date||""));
+  const canAdd = can(currentUserDoc, "indent", "add");
+
+  main().innerHTML = `
+    <div class="section-title">${t("indent")}</div>
+    ${canAdd ? `<div class="card">
+      <p style="font-size:13px;color:#777">${t("generateFromMenu")}: ${t("menu")} → "${t("generateFromMenu")}" ${currentLang==='hi'?'बटन दबाएं':'button'}. ${t("addExtraItem")}:</p>
+      <div class="form-row">
+        <div style="flex:2"><select id="indIngSelect">
+          ${ingredients.map(i=>`<option value="${i.id}">${ingName(i)} (${esc(i.unit)})</option>`).join("")}
+        </select></div>
+        <div><label>${t("requiredQty")}</label><input id="indQty" type="number" step="0.001" value="1"></div>
+        <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addIndentExtraItem()">${t("addExtraItem")}</button></div>
+      </div>
+      <table id="indentItemsTable"></table>
+      <button class="btn-primary" style="width:auto;margin-top:10px" onclick="submitIndent()">${t("createIndent")}</button>
+    </div>`:""}
+
+    <div class="card">
+      <table><tr><th>${t("date")}</th><th>ID</th><th>${t("status")}</th><th>Items</th></tr>
+      ${indents.map(i=>`<tr>
+        <td>${esc(i.date)}</td><td>${i.id.slice(0,6)}</td>
+        <td><span class="tag tag-${i.status}">${t(i.status)}</span></td>
+        <td>${(i.items||[]).length}</td>
+      </tr>`).join("")}
+      </table>
+    </div>`;
+  renderIndentItemsTable();
+}
+function renderIndentItemsTable(){
+  const tbl = document.getElementById("indentItemsTable");
+  if (!tbl) return;
+  tbl.innerHTML = `<tr><th>${t("ingredients")}</th><th>${t("requiredQty")}</th><th>${t("availableStock")}</th>
+    <th>${t("shortfall")}</th><th>${t("from")}</th><th></th></tr>` +
+    indentDraftItems.map((row,idx)=>{
+      const ing = window.__ingredientsCache.find(i=>i.id===row.ingredientId);
+      return `<tr>
+        <td>${ing?ingName(ing):"?"}</td><td>${row.requiredQty}</td>
+        <td>${(row.availableQty||0).toFixed(3)}</td>
+        <td class="${row.shortfallQty>0?'shortfall':'ok-stock'}">${(row.shortfallQty||0).toFixed(3)}</td>
+        <td>${row.source==="menu"?t("fromStock"):t("notInStock")}</td>
+        <td><button class="remove-row-btn" onclick="removeIndentItem(${idx})">✕</button></td>
+      </tr>`;
+    }).join("");
+}
+window.addIndentExtraItem = function(){
+  const ingredientId = document.getElementById("indIngSelect").value;
+  const requiredQty = Number(document.getElementById("indQty").value)||0;
+  if (!ingredientId || requiredQty<=0) return;
+  const available = window.__stockCache[ingredientId]?.qtyInHand || 0;
+  indentDraftItems.push({ ingredientId, requiredQty, availableQty:available,
+    shortfallQty: Math.max(0, requiredQty-available), source:"manual" });
+  renderIndentItemsTable();
+};
+window.removeIndentItem = function(idx){
+  indentDraftItems.splice(idx,1);
+  renderIndentItemsTable();
+};
+window.submitIndent = async function(){
+  if (!indentDraftItems.length){ showToast("Items jodein","error"); return; }
+  await addOne("indents", {
+    date: todayStr(), menuId: indentDraftMenuId, createdBy: currentUserDoc.uid,
+    createdByName: currentUserDoc.name || currentUserDoc.email,
+    items: indentDraftItems, status:"pending"
+  });
+  indentDraftItems = []; indentDraftMenuId = null;
+  showToast(t("saved"),"success");
+  renderIndent();
+};
+
+// ==========================================================================
+// APPROVAL
+// ==========================================================================
+async function renderApproval(){
+  const [indents, ingredients] = await Promise.all([listWhere("indents","status","==","pending"), listAll("ingredients")]);
+  const canApprove = can(currentUserDoc, "approval", "approve");
+  main().innerHTML = `
+    <div class="section-title">${t("approval")}</div>
+    ${indents.length===0? `<p>${t("noData")}</p>` : indents.map(ind=>`
+      <div class="card">
+        <b>${t("date")}:</b> ${esc(ind.date)} &nbsp; <b>${currentLang==='hi'?'द्वारा':'By'}:</b> ${esc(ind.createdByName||"")}
+        <table><tr><th>${t("ingredients")}</th><th>${t("requiredQty")}</th><th>${t("availableStock")}</th><th>${t("shortfall")}</th></tr>
+        ${(ind.items||[]).map(it=>{
+          const ing = ingredients.find(i=>i.id===it.ingredientId);
+          return `<tr><td>${ing?ingName(ing):"?"}</td><td>${it.requiredQty}</td><td>${(it.availableQty||0).toFixed(3)}</td>
+            <td class="${it.shortfallQty>0?'shortfall':'ok-stock'}">${(it.shortfallQty||0).toFixed(3)}</td></tr>`;
+        }).join("")}
+        </table>
+        ${canApprove?`<button class="btn-primary" style="width:auto" onclick="decideIndent('${ind.id}','approved')">${t("approve")}</button>
+        <button class="btn-secondary" onclick="decideIndent('${ind.id}','rejected')">${t("reject")}</button>`:""}
+      </div>`).join("")}`;
+}
+window.decideIndent = async function(id, status){
+  await updateOne("indents", id, { status, approvedBy: currentUserDoc.uid, approvedAt: todayStr() });
+  showToast(t("saved"),"success");
+  renderApproval();
+};
+
+// ==========================================================================
+// STORE ISSUE
+// ==========================================================================
+async function renderStoreIssue(){
+  const [indents, ingredients] = await Promise.all([listWhere("indents","status","==","approved"), listAll("ingredients")]);
+  const canIssue = can(currentUserDoc, "storeIssue", "issue");
+  const pending = indents.filter(i => !i.issueStatus || i.issueStatus==="pending" || i.issueStatus==="partial");
+  main().innerHTML = `
+    <div class="section-title">${t("storeIssue")}</div>
+    ${pending.length===0? `<p>${t("noData")}</p>` : pending.map(ind=>`
+      <div class="card" id="issueCard_${ind.id}">
+        <b>${t("date")}:</b> ${esc(ind.date)}
+        <table><tr><th>${t("ingredients")}</th><th>${t("requiredQty")}</th><th>${t("availableStock")}</th><th>${t("issueQty")}</th></tr>
+        ${(ind.items||[]).map((it,idx)=>{
+          const ing = ingredients.find(i=>i.id===it.ingredientId);
+          const already = it.issuedQty || 0;
+          return `<tr><td>${ing?ingName(ing):"?"}</td><td>${it.requiredQty}</td><td>${(it.availableQty||0).toFixed(3)}</td>
+            <td><input type="number" step="0.001" id="issueQty_${ind.id}_${idx}" value="${already || Math.min(it.requiredQty, it.availableQty||0)}" ${canIssue?"":"disabled"}></td></tr>`;
+        }).join("")}
+        </table>
+        ${canIssue?`<button class="btn-primary" style="width:auto" onclick="submitStoreIssue('${ind.id}')">${t("submitIssue")}</button>`:""}
+      </div>`).join("")}`;
+}
+window.submitStoreIssue = async function(indentId){
+  const ind = await getOne("indents", indentId);
+  let allFull = true;
+  for (let idx=0; idx<ind.items.length; idx++){
+    const el = document.getElementById(`issueQty_${indentId}_${idx}`);
+    const issuedQty = Number(el.value)||0;
+    ind.items[idx].issuedQty = issuedQty;
+    if (issuedQty < ind.items[idx].requiredQty) allFull = false;
+    await adjustStock(ind.items[idx].ingredientId, -issuedQty, 0);
+    await addLedgerEntry({ ingredientId: ind.items[idx].ingredientId, type:"out", qty:issuedQty,
+      refType:"indent", refId: indentId });
+  }
+  await updateOne("indents", indentId, { items: ind.items, issueStatus: allFull? "full":"partial" });
+  showToast(t("saved"),"success");
+  renderStoreIssue();
+};
+
+// ==========================================================================
+// PROCUREMENT — Purchase Orders
+// ==========================================================================
+let poDraftItems = [];
+async function renderProcurement(){
+  const [pos, suppliers, ingredients] = await Promise.all([listAll("purchaseOrders"), listAll("suppliers"), listAll("ingredients")]);
+  window.__ingredientsCache = ingredients;
+  const canAdd = can(currentUserDoc, "procurement", "add");
+  pos.sort((a,b)=> (b.date||"").localeCompare(a.date||""));
+  main().innerHTML = `
+    <div class="section-title">${t("procurement")} — ${t("purchaseOrder")}</div>
+    ${canAdd?`<div class="card">
+      <div class="form-row">
+        <div><label>${t("supplier")}</label><select id="poSupplier">
+          ${suppliers.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("")}
+        </select></div>
+        <div><label>${t("date")}</label><input id="poDate" type="date" value="${todayStr()}"></div>
+      </div>
+      <div class="form-row">
+        <div style="flex:2"><select id="poIngSelect">${ingredients.map(i=>`<option value="${i.id}">${ingName(i)}</option>`).join("")}</select></div>
+        <div><label>${t("requiredQty")}</label><input id="poQty" type="number" step="0.001" value="1"></div>
+        <div><label>${t("rate")}</label><input id="poRate" type="number" step="0.01" value="0"></div>
+        <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addPOItem()">${t("addNew")}</button></div>
+      </div>
+      <table id="poItemsTable"></table>
+      <button class="btn-primary" style="width:auto;margin-top:10px" onclick="savePO()">${t("createPO")}</button>
+    </div>`:""}
+    <div class="card"><table><tr><th>${t("date")}</th><th>${t("supplier")}</th><th>${t("amount")}</th><th>${t("status")}</th><th>${t("action")}</th></tr>
+    ${pos.map(p=>{
+      const supplier = suppliers.find(s=>s.id===p.supplierId);
+      const total = (p.items||[]).reduce((s,it)=>s+it.qty*it.rate,0);
+      return `<tr><td>${esc(p.date)}</td><td>${supplier?esc(supplier.name):"-"}</td><td>${money(total)}</td>
+        <td><span class="tag tag-${p.status}">${t(p.status)||p.status}</span></td>
+        <td>
+          <select onchange="updatePOStatus('${p.id}', this.value)">
+            ${["pending","ordered","partiallyReceived","received"].map(s=>`<option value="${s}" ${p.status===s?"selected":""}>${t(s)}</option>`).join("")}
+          </select>
+        </td></tr>`;
+    }).join("")}
+    </table></div>`;
+  poDraftItems = [];
+  renderPOItemsTable();
+}
+function renderPOItemsTable(){
+  const tbl = document.getElementById("poItemsTable");
+  if (!tbl) return;
+  tbl.innerHTML = `<tr><th>${t("ingredients")}</th><th>${t("requiredQty")}</th><th>${t("rate")}</th><th>${t("amount")}</th><th></th></tr>` +
+    poDraftItems.map((row,idx)=>{
+      const ing = window.__ingredientsCache.find(i=>i.id===row.ingredientId);
+      return `<tr><td>${ing?ingName(ing):"?"}</td><td>${row.qty}</td><td>${money(row.rate)}</td>
+        <td>${money(row.qty*row.rate)}</td>
+        <td><button class="remove-row-btn" onclick="removePOItem(${idx})">✕</button></td></tr>`;
+    }).join("");
+}
+window.addPOItem = function(){
+  const ingredientId = document.getElementById("poIngSelect").value;
+  const qty = Number(document.getElementById("poQty").value)||0;
+  const rate = Number(document.getElementById("poRate").value)||0;
+  if (!ingredientId||qty<=0) return;
+  poDraftItems.push({ ingredientId, qty, rate });
+  renderPOItemsTable();
+};
+window.removePOItem = function(idx){ poDraftItems.splice(idx,1); renderPOItemsTable(); };
+window.savePO = async function(){
+  if (!poDraftItems.length) return;
+  await addOne("purchaseOrders", {
+    supplierId: document.getElementById("poSupplier").value,
+    date: document.getElementById("poDate").value || todayStr(),
+    items: poDraftItems, status:"pending"
+  });
+  for (const it of poDraftItems){ await adjustStock(it.ingredientId, 0, it.qty); }
+  showToast(t("saved"),"success");
+  renderProcurement();
+};
+window.updatePOStatus = async function(id, status){
+  await updateOne("purchaseOrders", id, { status });
+  showToast(t("saved"),"success");
+};
+
+// ==========================================================================
+// RECEIVING
+// ==========================================================================
+async function renderReceiving(){
+  const [receivings, ingredients, pos, suppliers] = await Promise.all([
+    listAll("receivings"), listAll("ingredients"), listAll("purchaseOrders"), listAll("suppliers")
+  ]);
+  window.__ingredientsCache = ingredients;
+  const canAdd = can(currentUserDoc, "receiving", "add");
+  receivings.sort((a,b)=> (b.date||"").localeCompare(a.date||""));
+  main().innerHTML = `
+    <div class="section-title">${t("receiving")}</div>
+    ${canAdd?`<div class="card">
+      <div class="form-row">
+        <div><label>${t("purchaseOrder")} (optional)</label><select id="recvPO">
+          <option value="">--</option>
+          ${pos.map(p=>`<option value="${p.id}">${p.id.slice(0,6)} — ${(suppliers.find(s=>s.id===p.supplierId)||{}).name||""}</option>`).join("")}
+        </select></div>
+        <div><label>${t("date")}</label><input id="recvDate" type="date" value="${todayStr()}"></div>
+      </div>
+      <div class="form-row">
+        <div style="flex:2"><select id="recvIngSelect">${ingredients.map(i=>`<option value="${i.id}">${ingName(i)}</option>`).join("")}</select></div>
+        <div><label>${t("requiredQty")}</label><input id="recvQty" type="number" step="0.001" value="1"></div>
+        <div><label>${t("rate")}</label><input id="recvRate" type="number" step="0.01" value="0"></div>
+        <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addReceivingItem()">${t("addNew")}</button></div>
+      </div>
+      <table id="recvItemsTable"></table>
+      <button class="btn-primary" style="width:auto;margin-top:10px" onclick="saveReceiving()">${t("receiveEntry")}</button>
+    </div>`:""}
+    <div class="card"><table><tr><th>${t("date")}</th><th>${t("amount")}</th></tr>
+    ${receivings.map(r=>{
+      const total = (r.items||[]).reduce((s,it)=>s+it.qty*it.rate,0);
+      return `<tr><td>${esc(r.date)}</td><td>${money(total)}</td></tr>`;
+    }).join("")}
+    </table></div>`;
+  window.__recvDraftItems = [];
+  renderRecvItemsTable();
+}
+function renderRecvItemsTable(){
+  const tbl = document.getElementById("recvItemsTable");
+  if (!tbl) return;
+  tbl.innerHTML = `<tr><th>${t("ingredients")}</th><th>${t("requiredQty")}</th><th>${t("rate")}</th><th>${t("amount")}</th><th></th></tr>` +
+    window.__recvDraftItems.map((row,idx)=>{
+      const ing = window.__ingredientsCache.find(i=>i.id===row.ingredientId);
+      return `<tr><td>${ing?ingName(ing):"?"}</td><td>${row.qty}</td><td>${money(row.rate)}</td>
+        <td>${money(row.qty*row.rate)}</td>
+        <td><button class="remove-row-btn" onclick="removeRecvItem(${idx})">✕</button></td></tr>`;
+    }).join("");
+}
+window.addReceivingItem = function(){
+  const ingredientId = document.getElementById("recvIngSelect").value;
+  const qty = Number(document.getElementById("recvQty").value)||0;
+  const rate = Number(document.getElementById("recvRate").value)||0;
+  if (!ingredientId||qty<=0) return;
+  window.__recvDraftItems.push({ ingredientId, qty, rate });
+  renderRecvItemsTable();
+};
+window.removeRecvItem = function(idx){ window.__recvDraftItems.splice(idx,1); renderRecvItemsTable(); };
+window.saveReceiving = async function(){
+  const items = window.__recvDraftItems;
+  if (!items.length) return;
+  const poId = document.getElementById("recvPO").value || null;
+  const date = document.getElementById("recvDate").value || todayStr();
+  await addOne("receivings", { poId, date, items });
+  for (const it of items){
+    await adjustStock(it.ingredientId, it.qty, poId ? -it.qty : 0); // moves qty from pipeline->hand if linked to PO
+    await addLedgerEntry({ ingredientId: it.ingredientId, type:"in", qty: it.qty,
+      amount: it.qty*it.rate, refType:"receiving", refId: poId||"manual", date });
+  }
+  showToast(t("saved"),"success");
+  renderReceiving();
+};
+
+// ==========================================================================
+// DISTRIBUTION
+// ==========================================================================
+async function renderDistribution(){
+  const rows = await listAll("distribution");
+  rows.sort((a,b)=> (b.date||"").localeCompare(a.date||""));
+  const canAdd = can(currentUserDoc, "distribution", "add");
+  main().innerHTML = `
+    <div class="section-title">${t("distribution")}</div>
+    ${canAdd?`<div class="card">
+      <div class="form-row">
+        <div><label>${t("date")}</label><input id="distDate" type="date" value="${todayStr()}"></div>
+        <div><label>${t("preparedThalis")}</label><input id="distPrepared" type="number" value="0"></div>
+        <div><label>${t("distributedThalis")}</label><input id="distDistributed" type="number" value="0"></div>
+        <div><label>${t("wastedThalis")}</label><input id="distWasted" type="number" value="0"></div>
+      </div>
+      <div class="form-row">
+        <div><label>${t("distributionCenter")}</label><input id="distCenterName"></div>
+        <div><label>Count</label><input id="distCenterCount" type="number" value="0"></div>
+        <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addDistCenter()">${t("addNew")}</button></div>
+      </div>
+      <table id="distCentersTable"></table>
+      <button class="btn-primary" style="width:auto;margin-top:10px" onclick="saveDistribution()">${t("save")}</button>
+    </div>`:""}
+    <div class="card"><table><tr><th>${t("date")}</th><th>${t("preparedThalis")}</th><th>${t("distributedThalis")}</th>
+      <th>${t("remainingThalis")}</th><th>${t("wastedThalis")}</th></tr>
+      ${rows.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.preparedThalis)}</td><td>${esc(r.distributedThalis)}</td>
+        <td>${(r.preparedThalis||0)-(r.distributedThalis||0)-(r.wastedThalis||0)}</td><td>${esc(r.wastedThalis)}</td></tr>`).join("")}
+    </table></div>`;
+  window.__distCenters = [];
+  renderDistCentersTable();
+}
+function renderDistCentersTable(){
+  const tbl = document.getElementById("distCentersTable");
+  if (!tbl) return;
+  tbl.innerHTML = `<tr><th>${t("distributionCenter")}</th><th>Count</th><th></th></tr>` +
+    window.__distCenters.map((c,idx)=>`<tr><td>${esc(c.name)}</td><td>${c.count}</td>
+      <td><button class="remove-row-btn" onclick="removeDistCenter(${idx})">✕</button></td></tr>`).join("");
+}
+window.addDistCenter = function(){
+  const name = document.getElementById("distCenterName").value.trim();
+  const count = Number(document.getElementById("distCenterCount").value)||0;
+  if (!name) return;
+  window.__distCenters.push({name, count});
+  renderDistCentersTable();
+};
+window.removeDistCenter = function(idx){ window.__distCenters.splice(idx,1); renderDistCentersTable(); };
+window.saveDistribution = async function(){
+  await addOne("distribution", {
+    date: document.getElementById("distDate").value || todayStr(),
+    preparedThalis: Number(document.getElementById("distPrepared").value)||0,
+    distributedThalis: Number(document.getElementById("distDistributed").value)||0,
+    wastedThalis: Number(document.getElementById("distWasted").value)||0,
+    centers: window.__distCenters
+  });
+  showToast(t("saved"),"success");
+  renderDistribution();
+};
+
+// ==========================================================================
+// REPORTS — menu-wise expenditure, per-thali cost, stock ledger, pending indents
+// ==========================================================================
+async function renderReports(){
+  const [menus, ingredients, ledger, indents] = await Promise.all([
+    listAll("menus"), listAll("ingredients"), listAll("stockLedger"), listAll("indents")
+  ]);
+  const ingRateMap = {}; ingredients.forEach(i=> ingRateMap[i.id]=i.rate||0);
+  const menuCosts = menus.map(m=>{
+    const cost = (m.items||[]).reduce((s,it)=> s + it.qtyPerThali*(m.numThalis||0)*(ingRateMap[it.ingredientId]||0), 0);
+    return { ...m, cost, perThali: m.numThalis ? cost/m.numThalis : 0 };
+  });
+  const pendingIndents = indents.filter(i=>i.status==="pending");
+  main().innerHTML = `
+    <div class="section-title">${t("menuWiseExpenditure")}</div>
+    <div class="card">
+      <button class="small-btn" onclick="exportMenuCostsCSV()">${t("exportExcel")}</button>
+      <table><tr><th>${t("date")}</th><th>${t("menuName")}</th><th>${t("numThalis")}</th><th>${t("total")}</th><th>${t("perThaliExpenditure")}</th></tr>
+      ${menuCosts.map(m=>`<tr><td>${esc(m.date)}</td><td>${esc(currentLang==="hi"?m.name_hi:m.name_en)}</td>
+        <td>${esc(m.numThalis)}</td><td>${money(m.cost)}</td><td>${money(m.perThali.toFixed(2))}</td></tr>`).join("")}
+      </table>
+    </div>
+    <div class="card">
+      <div class="section-title">${t("stockLedger")}</div>
+      <table><tr><th>${t("date")}</th><th>${t("ingredients")}</th><th>Type</th><th>Qty</th><th>${t("amount")}</th></tr>
+      ${ledger.slice(-100).reverse().map(l=>{
+        const ing = ingredients.find(i=>i.id===l.ingredientId);
+        return `<tr><td>${esc(l.date)}</td><td>${ing?ingName(ing):"?"}</td><td>${esc(l.type)}</td><td>${esc(l.qty)}</td><td>${money(l.amount||0)}</td></tr>`;
+      }).join("")}
+      </table>
+    </div>
+    <div class="card">
+      <div class="section-title">${t("pendingApproval")}</div>
+      <table><tr><th>${t("date")}</th><th>Items</th></tr>
+      ${pendingIndents.map(i=>`<tr><td>${esc(i.date)}</td><td>${(i.items||[]).length}</td></tr>`).join("")}
+      </table>
+    </div>`;
+  window.__menuCostsForExport = menuCosts;
+}
+window.exportMenuCostsCSV = function(){
+  const rows = [["Date","Menu","Thalis","Total Cost","Per Thali Cost"]];
+  (window.__menuCostsForExport||[]).forEach(m=> rows.push([m.date, m.name_en||m.name_hi, m.numThalis, m.cost.toFixed(2), m.perThali.toFixed(2)]));
+  csvExport("menu_wise_expenditure.csv", rows);
+};
+
+// ==========================================================================
+// USERS (Admin only) — create user via secondary Firebase app instance
+// so the currently logged-in Admin session is NOT replaced.
+// ==========================================================================
+async function renderUsers(){
+  const users = await listAll("users");
+  main().innerHTML = `
+    <div class="section-title">${t("users")}</div>
+    <div class="card">
+      <div class="form-row">
+        <div><label>${t("name")}</label><input id="newUserName"></div>
+        <div><label>${t("email")}</label><input id="newUserEmail" type="email"></div>
+        <div><label>Temp ${t("password")}</label><input id="newUserPassword" value="Kitchen@123"></div>
+        <div><label>${t("role")}</label>
+          <select id="newUserRole">
+            <option value="admin">Admin</option>
+            <option value="cook">Cook / कुक</option>
+            <option value="storekeeper">Store Keeper / स्टोर कीपर</option>
+            <option value="procurement">Procurement / प्रोक्योरमेंट</option>
+            <option value="distribution">Distribution / वितरण</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-primary" style="width:auto" onclick="createNewUser()">${t("createUser")}</button>
+      <p style="font-size:12px;color:#777">${currentLang==='hi'?
+        'नोट: कुक को मेन्यू बनाने की अनुमति केवल Admin के अनुसार मिलती है। Custom Role के लिए README.md देखें।':
+        'Note: Cook gets menu-creation rights per default role. For fully custom per-module permissions, edit the permissions field directly in Firestore users/{uid} — see README.md.'}</p>
+    </div>
+    <div class="card">
+      <table><tr><th>${t("name")}</th><th>${t("email")}</th><th>${t("role")}</th></tr>
+      ${users.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${esc(u.role)}</td></tr>`).join("")}
+      </table>
+    </div>`;
+}
+window.createNewUser = async function(){
+  const name = document.getElementById("newUserName").value.trim();
+  const email = document.getElementById("newUserEmail").value.trim();
+  const password = document.getElementById("newUserPassword").value;
+  const role = document.getElementById("newUserRole").value;
+  if (!name||!email||password.length<6){ showToast("Sahi jaankari bharen (password >=6 chars)","error"); return; }
+  try{
+    // secondary app instance so creating a user doesn't log out the Admin
+    const secondaryApp = initializeApp(firebaseApp.options, "Secondary_"+Date.now());
+    const secondaryAuth = getAuth(secondaryApp);
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    await setDoc(doc(db, "users", cred.user.uid), { name, email, role, permissions:{} });
+    await signOut(secondaryAuth);
+    showToast(t("saved"),"success");
+    renderUsers();
+  }catch(err){
+    console.error(err);
+    showToast(err.message,"error");
+  }
+};
+
+// ---------------- main.js: Navigation/router ----------------
+// ==========================================================================
+// main.js — Sidebar navigation + module router
+// ==========================================================================
+import * as M from "./modules.js";
+
+const NAV_ITEMS = [
+  { key:"dashboard",  labelKey:"dashboard",  render:renderDashboard },
+  { key:"menu",       labelKey:"menu",       render:renderMenu },
+  { key:"indent",     labelKey:"indent",     render:renderIndent },
+  { key:"approval",   labelKey:"approval",   render:renderApproval },
+  { key:"storeIssue", labelKey:"storeIssue", render:renderStoreIssue },
+  { key:"receiving",  labelKey:"receiving",  render:renderReceiving },
+  { key:"procurement",labelKey:"procurement",render:renderProcurement },
+  { key:"distribution",labelKey:"distribution",render:renderDistribution },
+  { key:"ingredients",labelKey:"ingredients",render:renderIngredients },
+  { key:"suppliers",  labelKey:"suppliers",  render:renderSuppliers },
+  { key:"reports",    labelKey:"reports",    render:renderReports },
+  { key:"users",      labelKey:"users",      render:renderUsers },
+];
+
+let activeModule = "dashboard";
+
+function visibleItems(){
+  const user = window.currentUserDoc;
+  return NAV_ITEMS.filter(item => can(user, item.key, "view"));
+}
+
+function buildSidebar(){
+  const items = visibleItems();
+  const list = document.getElementById("navList");
+  list.innerHTML = items.map(it =>
+    `<li data-key="${it.key}" class="${it.key===activeModule?'active':''}" onclick="window.__navigateTo('${it.key}')">${t(it.labelKey)}</li>`
+  ).join("");
+  if (!items.find(i=>i.key===activeModule) && items.length){
+    activeModule = items[0].key;
+  }
+}
+
+window.__navigateTo = function(key){
+  const item = NAV_ITEMS.find(i=>i.key===key);
+  if (!item) return;
+  if (!can(window.currentUserDoc, key, "view")){
+    document.getElementById("mainContent").innerHTML = `<p>${t("accessDenied")}</p>`;
+    return;
+  }
+  activeModule = key;
+  buildSidebar();
+  item.render();
+  document.getElementById("sidebar").classList.remove("open"); // close on mobile after nav
+};
+
+window.renderCurrentModule = function(){
+  applyStaticTranslations();
+  buildSidebar();
+  const item = NAV_ITEMS.find(i=>i.key===activeModule);
+  if (item) item.render();
+};
+
+window.toggleSidebar = function(){
+  document.getElementById("sidebar").classList.toggle("open");
+};
+
+// Called by auth.js right after successful login
+window.initAppUI = function(){
+  activeModule = "dashboard";
+  window.renderCurrentModule();
+};
+</script>
+</body>
+</html>
