@@ -1,1719 +1,273 @@
 <!DOCTYPE html>
-<html lang="hi">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FMB Kitchen Management System</title>
+<html lang="hi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FMB रसोई प्रबंधन / Kitchen Manager</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-:root{
-  --primary:#c0392b; --primary-dark:#922b21; --accent:#27ae60; --bg:#f7f5f2;
-  --card:#ffffff; --text:#2c2c2c; --border:#e0dcd5; --warn:#e67e22; --danger:#c0392b;
+:root{--bg:#f6f3ec;--card:#fff;--ink:#1f2a24;--mut:#66726b;--pri:#0f5c44;--acc:#b8862b;--bad:#b3261e;--good:#1a7a3c;--line:#ddd6c6;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121816;--card:#1b2420;--ink:#e9efe9;--mut:#93a39a;--pri:#4fc39b;--acc:#e0b35a;--bad:#ff8a80;--good:#7bd39a;--line:#2f3b35}}
+:root[data-theme="dark"]{--bg:#121816;--card:#1b2420;--ink:#e9efe9;--mut:#93a39a;--pri:#4fc39b;--acc:#e0b35a;--bad:#ff8a80;--good:#7bd39a;--line:#2f3b35}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Noto Sans Devanagari","Segoe UI",Arial,sans-serif}
+header{background:var(--pri);color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;position:sticky;top:0;z-index:3}
+header b{font-size:17px}header small{opacity:.85;display:block}
+nav{display:flex;overflow-x:auto;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:calc(env(safe-area-inset-top,0px) + 52px);z-index:2}
+nav button{flex:none;border:0;background:none;color:var(--mut);padding:12px 14px;font:inherit;border-bottom:3px solid transparent;cursor:pointer}
+nav button.on{color:var(--pri);border-color:var(--acc);font-weight:700}
+main{padding:14px;max-width:1050px;margin:auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+h3{margin:0 0 8px;font-size:16px}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.k{border-left:4px solid var(--acc);padding:6px 10px}.k span{color:var(--mut);font-size:12px}.k div{font-size:22px;font-weight:700}
+.w{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}th{color:var(--mut);font-weight:600}
+button.b,input,select{font:inherit;padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button.b{background:var(--pri);color:#fff;border:0;cursor:pointer;margin:2px}button.b.s{background:var(--acc);color:#1f2a24}button.b.x{background:var(--bad)}
+.r{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+.tag{padding:2px 8px;border-radius:99px;background:var(--line);font-size:12px}.bad{color:var(--bad);font-weight:600}.good{color:var(--good);font-weight:600}
+.bar{height:12px;background:var(--line);border-radius:6px;overflow:hidden}.bar i{display:block;height:100%;background:var(--pri)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+#login{max-width:340px;margin:8vh auto;padding:14px}#login input{width:100%;margin-bottom:8px}
+p.hint{color:var(--mut);font-size:13px;margin:4px 0 0}
+.chk{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:13px;cursor:pointer}
+.chk input{padding:0}
+.sub{color:var(--mut);font-size:12px}
+</style></head><body>
+<div id="app"></div>
+<script>
+const K='fmb_v4',T=()=>new Date().toISOString().slice(0,10);
+let S,U=null,tab='dash',D=T(),editUID=null,menuCatFilter='';
+let lang='hi';try{lang=localStorage.getItem('fmb_lang')||'hi'}catch(e){}
+const DICT=[
+['डैशबोर्ड','Dashboard'],['मेन्यू व इंडेंट','Menu & Indent'],['भंडार: इश्यू/रिसीव','Store: Issue/Receive'],['खरीद (PO)','Procurement (PO)'],['स्टॉक','Stock'],['पकाई','Cooking'],['थाली वितरण','Thali Distribution'],['खर्च/थाली','Cost/Thali'],['यूज़र प्रबंधन','User Management'],
+['यूज़र नाम या पासवर्ड गलत है','Wrong username or password'],['यूज़र नाम','Username'],['पासवर्ड','Password'],['पूरा नाम','Full name'],['लॉगिन','Login'],['लॉगआउट','Logout'],
+['डेमो डेटा रीसेट','Reset demo data'],['सारा डेटा हटाकर डेमो डेटा लौटाएँ?','Delete all data and restore demo data?'],['डेमो:','Demo:'],['तारीख:','Date:'],
+['आज की थाली (योजना)','Today thalis (planned)'],['वितरित','Distributed'],['आज का खर्च','Today cost'],['खर्च प्रति थाली','Cost per thali'],['लंबित इंडेंट','Pending indents'],['लंबित PO','Pending POs'],
+['आज का मेन्यू','Today menu'],['मेन्यू तय नहीं','Menu not set'],['स्टॉक चेतावनी','Stock alerts'],['सब ठीक है','All OK'],['स्टॉक मूल्य','Stock value'],['पाइपलाइन में','in pipeline'],['हाथ में','in hand'],['न्यूनतम','Min'],
+['मेन्यू विवरण','Menu details'],['मेन्यू का नाम (जैसे दाल-चावल-सब्ज़ी-रोटी)','Menu name (e.g. Dal-Rice-Sabzi-Roti)'],['थाली संख्या','Thali count'],
+['सामग्री की आवश्यकता (इंडेंट)','Ingredient requirement (Indent)'],['आवश्यक मात्रा','Required qty'],['जोड़ें','Add'],['नया आइटम (स्टॉक में नहीं)','New item (not in stock)'],['खोजें / चुनें','Search / select'],
+['सामग्री','Item'],['श्रेणी','Category'],['आवश्यक','Required'],['उपलब्ध स्टॉक','Available stock'],['उपलब्ध','Available'],['बदलें','Change'],['हटाएँ','Remove'],
+['मात्रा दर्ज करें','Enter a quantity'],['नई मात्रा','New qty'],['नए आइटम का नाम','New item name'],['इकाई (kg/L/piece)','Unit (kg/L/piece)'],
+['क्या यह Veg आइटम है? OK = Veg, Cancel = Non-Veg','Is this a Veg item? OK = Veg, Cancel = Non-Veg'],['अनुमानित दर (यदि पता हो)','Estimated rate (if known)'],
+['स्थिति:','Status:'],['जमा करें','Submit'],['मंज़ूर करें','Approve'],['अस्वीकार करें','Reject'],['कमी','Short'],['एडमिन एडिट','Admin edit'],
+['इश्यू के लिए मंज़ूर इंडेंट (आइटम-वाइज़)','Approved indents for issue (item-wise)'],['इश्यू करें','Issue'],['स्टॉक कम है:','Insufficient stock:'],['इश्यू हो चुका है','Already issued'],
+['रिसीविंग (PO के विरुद्ध)','Receiving (against PO)'],['बाकी','Pending'],['दर','Rate'],['विक्रेता (Vendor)','Vendor'],['स्थानीय मंडी','Local market'],['प्राप्त करें','Receive'],
+['प्राप्त मात्रा (बाकी','Received qty (pending'],['कमी वाली सामग्री (हाथ+पाइपलाइन)','Low-stock items (hand+pipeline)'],['हाथ','Hand'],['पाइपलाइन','Pipeline'],['PO बनाएँ','Create PO'],
+['कोई भी आइटम खरीदें','Buy any item'],['सभी PO','All POs'],
+['स्टॉक अपलोड (Excel) — मौजूदा स्टॉक चढ़ाने के लिए','Bulk stock upload (Excel) — for uploading existing stock'],['टेम्पलेट डाउनलोड करें (पूरी सूची सहित)','Download template (full catalog)'],['Excel फ़ाइल चुनें','Choose Excel file'],
+['Excel कॉलम: Item Name (Hindi), Item Name (English), Category, Unit, Rate, Min Stock, Current Stock (Hand), Veg/Non-Veg. मौजूदा नाम वाले आइटम अपडेट होंगे, नए आइटम जुड़ जाएँगे। मीट/अंडे सहित सभी आइटम टेम्पलेट में पहले से मौजूद हैं।','Excel columns: Item Name (Hindi), Item Name (English), Category, Unit, Rate, Min Stock, Current Stock (Hand), Veg/Non-Veg. Items with a matching name will be updated; new items will be added. All items including meat/eggs are pre-listed in the template.'],
+['अपलोड पूर्ण — नए:','Upload complete — new:'],['अपडेट हुए:','updated:'],['फ़ाइल पढ़ने में त्रुटि:','Error reading file:'],
+['स्टॉक: हाथ में / पाइपलाइन','Stock: In hand / Pipeline'],['आरक्षित','Reserved'],['अनुमानित','Projected'],['टाइप','Type'],['केवल कम स्टॉक दिखाएँ','Show low stock only'],['सभी','All'],
+['पकाई का रिकॉर्ड','Cooking log'],['मेन्यू नहीं','no menu'],['पकाई गई थाली','Thalis cooked'],['बर्बादी (kg)','Wastage (kg)'],['सेव','Save'],['सेव हुआ:','Saved:'],['थाली','thalis'],
+['वितरण प्रगति','Distribution progress'],['रूट','Route'],['योजना','Plan'],['अपडेट','Update'],
+['दिन-वार / मेन्यू-वार खर्च प्रति थाली','Day-wise / menu-wise cost per thali'],['खर्च = इश्यू की गई सामग्री × औसत दर। थाली = वितरित (न हो तो योजना)।','Cost = issued items × avg rate. Thalis = distributed (else planned).'],['खर्च','Cost'],
+['यूज़र सूची','User list'],['नया यूज़र बनाएँ','Create new user'],['यूज़र अपडेट करें','Update user'],['एडमिन (सभी अधिकार)','Admin (all rights)'],['इंडेंट मंज़ूर/एडिट अधिकार','Indent approve/edit rights'],['अनुमति प्राप्त टैब','Permitted tabs'],['एडिट','Edit'],
+['क्या इस यूज़र को हटाएँ?','Delete this user?'],['यूज़रनेम पहले से मौजूद है','Username already exists'],['यूज़रनेम और पासवर्ड ज़रूरी है','Username and password are required'],['रद्द करें','Cancel'],['भूमिका','Role'],['अंतिम एडमिन को हटाया नहीं जा सकता','Cannot delete the last admin'],
+['अभी कोई डेटा नहीं','No data yet'],
+['श्रेणी फ़िल्टर:','Category filter:'],['सभी श्रेणियाँ','All categories'],['पासवर्ड बदलें','Change password'],
+['वर्तमान पासवर्ड गलत है','Current password is incorrect'],['वर्तमान पासवर्ड','Current password'],['नया पासवर्ड दोबारा भरें','Confirm new password'],['नया पासवर्ड','New password'],
+['पासवर्ड मेल नहीं खाता','Passwords do not match'],['पासवर्ड बदल गया','Password changed successfully']
+].sort((a,b)=>b[0].length-a[0].length);
+function tr(s){if(lang!='en'||typeof s!='string')return s;DICT.forEach(([h,e])=>{s=s.split(h).join(e)});return s}
+const _p=window.prompt.bind(window),_a=window.alert.bind(window),_c=window.confirm.bind(window);
+window.prompt=(m,d)=>_p(tr(m),d);window.alert=m=>_a(tr(m));window.confirm=m=>_c(tr(m));
+function tg(){lang=lang=='en'?'hi':'en';try{localStorage.setItem('fmb_lang',lang)}catch(e){}render()}
+const LB=()=>`<button class="b s" onclick="tg()">${lang=='en'?'हिंदी':'English'}</button>`;
+
+const ALL_TABS=['dash','menu','store','proc','stock','cook','dist','cost'];
+const NM={dash:'डैशबोर्ड',menu:'मेन्यू व इंडेंट',store:'भंडार: इश्यू/रिसीव',proc:'खरीद (PO)',stock:'स्टॉक',cook:'पकाई',dist:'थाली वितरण',cost:'खर्च/थाली',users:'यूज़र प्रबंधन'};
+
+function seedUsers(){return[
+ {u:'admin',p:'admin123',name:'प्रबंधक / Manager (Admin)',isAdmin:true,approve:true,tabs:ALL_TABS.slice()},
+ {u:'cook',p:'cook123',name:'रसोइया / Cook',isAdmin:false,approve:false,tabs:['dash','menu','cook']},
+ {u:'store',p:'store123',name:'भंडारी / Storekeeper',isAdmin:false,approve:false,tabs:['dash','store','stock']},
+ {u:'proc',p:'proc123',name:'खरीद अधिकारी / Procurement Officer',isAdmin:false,approve:false,tabs:['dash','proc','stock']},
+ {u:'dist',p:'dist123',name:'वितरण स्वयंसेवक / Distribution Volunteer',isAdmin:false,approve:false,tabs:['dash','dist']}
+]}
+
+function seed(){
+return{items:[{"id":0,"n":"गेहूं","en":"Wheat","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":1,"n":"गेहूं का आटा","en":"Wheat Flour","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":40,"min":60,"hand":150,"pipe":0,"veg":true},{"id":2,"n":"मैदा","en":"Refined Wheat Flour / Maida","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":3,"n":"रोटी","en":"Roti","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":4,"n":"सूजी / रवा","en":"Semolina / Sooji","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":5,"n":"बेसन","en":"Gram Flour","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":6,"n":"चावल","en":"Rice","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":70,"min":50,"hand":120,"pipe":0,"veg":true},{"id":7,"n":"बासमती चावल","en":"Basmati Rice","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":8,"n":"कोलम चावल","en":"Kolam Rice","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":9,"n":"नमक","en":"Salt","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":20,"min":5,"hand":15,"pipe":0,"veg":true},{"id":10,"n":"इडली चावल","en":"Idli Rice","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":11,"n":"पोहा","en":"Flattened Rice","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":12,"n":"मुरमुरा","en":"Puffed Rice","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":13,"n":"दलिया","en":"Broken Wheat","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":14,"n":"जई","en":"Oats","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":15,"n":"मक्का का आटा","en":"Maize Flour","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":16,"n":"बाजरे का आटा","en":"Pearl Millet Flour","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":17,"n":"ज्वार का आटा","en":"Sorghum Flour","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":18,"n":"रागी का आटा","en":"Finger Millet Flour","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":19,"n":"चावल का आटा","en":"Rice Flour","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":20,"n":"कॉर्नफ्लोर","en":"Cornflour / Cornstarch","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":21,"n":"ब्रेड क्रम्ब्स","en":"Bread Crumbs","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":22,"n":"साबूदाना","en":"Sago / Tapioca Pearls","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":23,"n":"सेवई","en":"Vermicelli","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":24,"n":"नूडल्स","en":"Noodles","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":25,"n":"पास्ता","en":"Pasta","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":26,"n":"मैकरोनी","en":"Macaroni","c":"A. अनाज, आटा एवं चावल | Grains, Flour & Rice","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":27,"n":"तूर / अरहर दाल","en":"Toor / Pigeon Pea","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":150,"min":30,"hand":40,"pipe":0,"veg":true},{"id":28,"n":"मूंग दाल","en":"Moong Dal","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":29,"n":"धुली मूंग दाल","en":"Split Yellow Moong Dal","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":30,"n":"साबुत मूंग","en":"Whole Green Gram","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":31,"n":"मसूर दाल","en":"Red Lentils","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":32,"n":"साबुत मसूर","en":"Whole Brown Lentils","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":33,"n":"चना दाल","en":"Bengal Gram Dal","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":34,"n":"उड़द दाल","en":"Urad Dal / Black Gram","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":35,"n":"धुली उड़द दाल","en":"Split White Urad Dal","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":36,"n":"काला चना","en":"Black Chickpeas","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":37,"n":"काबुली चना","en":"Chickpeas / Kabuli Chana","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":38,"n":"सफेद मटर","en":"White Peas","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":39,"n":"सूखी हरी मटर","en":"Dried Green Peas","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":40,"n":"राजमा","en":"Kidney Beans","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":41,"n":"चावला","en":"Black-Eyed Peas","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":42,"n":"सोयाबीन","en":"Soybeans","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":43,"n":"सोया चंक्स","en":"Soya Chunks","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":44,"n":"बेसन सेव / गट्टा","en":"Gram Flour Sev / Gatta","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":45,"n":"मटकी / मोठ","en":"Moth Beans","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":46,"n":"अंकुरित मूंग","en":"Sprouted Moong","c":"B. दालें, बीन्स एवं अन्य प्रोटीन | Pulses, Beans & Plant Protein","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":47,"n":"आलू","en":"Potato","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":30,"min":40,"hand":90,"pipe":0,"veg":true},{"id":48,"n":"प्याज","en":"Onion","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":35,"min":20,"hand":50,"pipe":0,"veg":true},{"id":49,"n":"लाल प्याज","en":"Red Onion","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":50,"n":"टमाटर","en":"Tomato","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":51,"n":"हरी मिर्च","en":"Green Chilli","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":52,"n":"शिमला मिर्च","en":"Capsicum / Bell Pepper","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":53,"n":"बैंगन","en":"Brinjal / Eggplant","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":54,"n":"भिंडी","en":"Okra / Lady Finger","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":55,"n":"लौकी","en":"Bottle Gourd","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":56,"n":"तुरई","en":"Ridge Gourd","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":57,"n":"टिंडा","en":"Indian Round Gourd","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":58,"n":"कद्दू","en":"Pumpkin","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":59,"n":"करेला","en":"Bitter Gourd","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":60,"n":"परवल","en":"Pointed Gourd","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":61,"n":"कुंदरू","en":"Ivy Gourd","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":62,"n":"ग्वार फली","en":"Cluster Beans","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":63,"n":"फ्रेंच बीन्स","en":"French Beans","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":64,"n":"हरी मटर","en":"Green Peas","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":65,"n":"फूलगोभी","en":"Cauliflower","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":66,"n":"पत्तागोभी","en":"Cabbage","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":67,"n":"ब्रोकली","en":"Broccoli","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":68,"n":"गाजर","en":"Carrot","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":69,"n":"मूली","en":"Radish","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":70,"n":"चुकंदर","en":"Beetroot","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":71,"n":"शलजम","en":"Turnip","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":72,"n":"शकरकंद","en":"Sweet Potato","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":73,"n":"अरबी","en":"Colocasia / Taro Root","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":74,"n":"जिमीकंद","en":"Elephant Foot Yam","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":75,"n":"कच्चा केला","en":"Raw Banana","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":76,"n":"सहजन की फली/सेवटा नि सिंग","en":"Drumstick","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":77,"n":"ककड़ी लंबी","en":"Cucumber long","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":78,"n":"खीरा","en":"Cucumber","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":79,"n":"पालक","en":"Spinach","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":80,"n":"मेथी","en":"Fenugreek Leaves","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":81,"n":"सरसों का साग","en":"Mustard Greens","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":82,"n":"बथुआ","en":"Bathua Greens","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":83,"n":"धनिया पत्ता","en":"Fresh Coriander Leaves","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":84,"n":"पुदीना","en":"Mint Leaves","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":85,"n":"करी पत्ता","en":"Curry Leaves","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":86,"n":"लेमन ग्रास","en":"Lemongrass","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":87,"n":"लहसुन","en":"Garlic","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":88,"n":"अदरक","en":"Ginger","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":89,"n":"नींबू","en":"Lemon","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":90,"n":"मशरूम","en":"Mushroom","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":91,"n":"स्वीट कॉर्न","en":"Sweet Corn","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":92,"n":"कच्चा पपीता","en":"Raw Papaya","c":"C. सब्जियां एवं कंद-मूल | Vegetables & Roots","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":93,"n":"केला","en":"Banana","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":94,"n":"सेब","en":"Apple","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":95,"n":"संतरा","en":"Orange","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":96,"n":"मौसंबी","en":"Sweet Lime","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":97,"n":"अनार","en":"Pomegranate","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":98,"n":"अंगूर","en":"Grapes","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":99,"n":"पपीता","en":"Papaya","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":100,"n":"तरबूज","en":"Watermelon","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":101,"n":"खरबूजा","en":"Muskmelon","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":102,"n":"अमरूद","en":"Guava","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":103,"n":"आम","en":"Mango","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":104,"n":"अनानास","en":"Pineapple","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":105,"n":"चीकू","en":"Sapodilla","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":106,"n":"नाशपाती","en":"Pear","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":107,"n":"खजूर","en":"Dates","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":108,"n":"नारियल","en":"Coconut","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":109,"n":"सलाद पत्ता","en":"Lettuce","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":110,"n":"चेरी टमाटर","en":"Cherry Tomato","c":"D. फल एवं सलाद सामग्री | Fruits & Salad Items","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":111,"n":"दूध","en":"Milk","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":112,"n":"फुल क्रीम दूध","en":"Full Cream Milk","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":113,"n":"टोंड दूध","en":"Toned Milk","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":114,"n":"दही","en":"Curd / Yogurt","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":115,"n":"छाछ","en":"Buttermilk","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":116,"n":"मट्ठा","en":"Whey / Buttermilk","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":117,"n":"पनीर","en":"Paneer / Cottage Cheese","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":118,"n":"मक्खन","en":"Butter","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":119,"n":"सफेद मक्खन","en":"White Butter","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":120,"n":"घी","en":"Ghee","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":121,"n":"मलाई","en":"Cream","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":122,"n":"चीज","en":"Cheese","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":123,"n":"खोया / मावा","en":"Khoya / Mawa","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":124,"n":"कंडेंस्ड मिल्क","en":"Condensed Milk","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":125,"n":"मिल्क पाउडर","en":"Milk Powder","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":126,"n":"चीज स्लाइस","en":"Cheese Slices","c":"E. दूध एवं डेयरी उत्पाद | Milk & Dairy Products","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":127,"n":"सोयाबीन तेल","en":"Soybean Oil","c":"F. तेल, घी एवं वसा | Oils, Ghee & Fats","u":"L","rate":140,"min":15,"hand":30,"pipe":0,"veg":true},{"id":128,"n":"सूरजमुखी तेल","en":"Sunflower Oil","c":"F. तेल, घी एवं वसा | Oils, Ghee & Fats","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":129,"n":"मूंगफली तेल","en":"Groundnut Oil","c":"F. तेल, घी एवं वसा | Oils, Ghee & Fats","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":130,"n":"सरसों का तेल","en":"Mustard Oil","c":"F. तेल, घी एवं वसा | Oils, Ghee & Fats","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":131,"n":"राइस ब्रान तेल","en":"Rice Bran Oil","c":"F. तेल, घी एवं वसा | Oils, Ghee & Fats","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":132,"n":"पाम ऑयल","en":"Palm Oil","c":"F. तेल, घी एवं वसा | Oils, Ghee & Fats","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":133,"n":"वनस्पति घी","en":"Vanaspati","c":"F. तेल, घी एवं वसा | Oils, Ghee & Fats","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":134,"n":"देसी घी","en":"Desi Ghee","c":"F. तेल, घी एवं वसा | Oils, Ghee & Fats","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":135,"n":"नारियल तेल","en":"Coconut Oil","c":"F. तेल, घी एवं वसा | Oils, Ghee & Fats","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":136,"n":"जैतून का तेल","en":"Olive Oil","c":"F. तेल, घी एवं वसा | Oils, Ghee & Fats","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":137,"n":"जीरा","en":"Cumin Seeds","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":138,"n":"राई / सरसों","en":"Mustard Seeds","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":139,"n":"अजवाइन","en":"Carom Seeds","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":140,"n":"सौंफ","en":"Fennel Seeds","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":141,"n":"मेथी दाना","en":"Fenugreek Seeds","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":142,"n":"धनिया साबुत","en":"Coriander Seeds","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":143,"n":"काली मिर्च","en":"Black Pepper","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":144,"n":"लौंग","en":"Cloves","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":145,"n":"हरी इलायची","en":"Green Cardamom","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":146,"n":"बड़ी इलायची","en":"Black Cardamom","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":147,"n":"दालचीनी","en":"Cinnamon","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":148,"n":"तेज पत्ता","en":"Bay Leaf","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":149,"n":"जावित्री","en":"Mace","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":150,"n":"जायफल","en":"Nutmeg","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":151,"n":"सूखी लाल मिर्च","en":"Whole Dry Red Chilli","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":152,"n":"काला जीरा / शाही जीरा","en":"Black Cumin / Shahi Jeera","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":153,"n":"कलौंजी","en":"Nigella Seeds","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":154,"n":"तिल","en":"Sesame Seeds","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":155,"n":"खसखस","en":"Poppy Seeds","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":156,"n":"हींग","en":"Asafoetida","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":157,"n":"इमली","en":"Tamarind","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":158,"n":"अमचूर","en":"Dried Mango Powder","c":"G. साबुत मसाले | Whole Spices","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":159,"n":"हल्दी पाउडर","en":"Turmeric Powder","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":260,"min":2,"hand":4,"pipe":0,"veg":true},{"id":160,"n":"लाल मिर्च पाउडर","en":"Red Chilli Powder","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":161,"n":"कश्मीरी मिर्च पाउडर","en":"Kashmiri Chilli Powder","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":162,"n":"धनिया पाउडर","en":"Coriander Powder","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":163,"n":"जीरा पाउडर","en":"Cumin Powder","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":164,"n":"भुना जीरा पाउडर","en":"Roasted Cumin Powder","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":165,"n":"काली मिर्च पाउडर","en":"Black Pepper Powder","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":166,"n":"गरम मसाला","en":"Garam Masala","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":400,"min":3,"hand":6,"pipe":0,"veg":true},{"id":167,"n":"बिरयानी मसाला","en":"Biryani Masala","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":168,"n":"पुलाव मसाला","en":"Pulao Masala","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":169,"n":"छोले मसाला","en":"Chole Masala","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":170,"n":"पाव भाजी मसाला","en":"Pav Bhaji Masala","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":171,"n":"सांभर मसाला","en":"Sambar Masala","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":172,"n":"चाट मसाला","en":"Chaat Masala","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":173,"n":"किचन किंग मसाला","en":"Kitchen King Masala","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":174,"n":"सब्जी मसाला","en":"Vegetable Masala","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":175,"n":"पनीर मसाला","en":"Paneer Masala","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":176,"n":"कसूरी मेथी","en":"Dried Fenugreek Leaves","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":177,"n":"आमचूर पाउडर","en":"Dry Mango Powder","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":178,"n":"अनारदाना पाउडर","en":"Pomegranate Seed Powder","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":179,"n":"काला नमक","en":"Black Salt","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":180,"n":"सेंधा नमक","en":"Rock Salt","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":181,"n":"चाट नमक","en":"Chaat Salt","c":"H. पिसे मसाले एवं मसाला मिश्रण | Ground Spices & Masala Mixes","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":182,"n":"बादाम","en":"Almonds","c":"I. सूखे मेवे एवं बीज | Dry Fruits & Seeds","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":183,"n":"काजू","en":"Cashews","c":"I. सूखे मेवे एवं बीज | Dry Fruits & Seeds","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":184,"n":"पिस्ता","en":"Pistachios","c":"I. सूखे मेवे एवं बीज | Dry Fruits & Seeds","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":185,"n":"अखरोट","en":"Walnuts","c":"I. सूखे मेवे एवं बीज | Dry Fruits & Seeds","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":186,"n":"किशमिश","en":"Raisins","c":"I. सूखे मेवे एवं बीज | Dry Fruits & Seeds","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":187,"n":"मुनक्का","en":"Dried Black Raisins","c":"I. सूखे मेवे एवं बीज | Dry Fruits & Seeds","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":188,"n":"अंजीर","en":"Dried Figs","c":"I. सूखे मेवे एवं बीज | Dry Fruits & Seeds","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":189,"n":"छुहारा","en":"Dried Dates","c":"I. सूखे मेवे एवं बीज | Dry Fruits & Seeds","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":190,"n":"चिलगोजा","en":"Pine Nuts","c":"I. सूखे मेवे एवं बीज | Dry Fruits & Seeds","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":191,"n":"खरबूजे के बीज","en":"Melon Seeds","c":"I. सूखे मेवे एवं बीज | Dry Fruits & Seeds","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":192,"n":"कद्दू के बीज","en":"Pumpkin Seeds","c":"I. सूखे मेवे एवं बीज | Dry Fruits & Seeds","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":193,"n":"चिया सीड्स","en":"Chia Seeds","c":"I. सूखे मेवे एवं बीज | Dry Fruits & Seeds","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":194,"n":"अलसी","en":"Flax Seeds","c":"I. सूखे मेवे एवं बीज | Dry Fruits & Seeds","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":195,"n":"मूंगफली","en":"Peanuts","c":"I. सूखे मेवे एवं बीज | Dry Fruits & Seeds","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":196,"n":"नारियल बुरादा","en":"Desiccated Coconut","c":"I. सूखे मेवे एवं बीज | Dry Fruits & Seeds","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":197,"n":"चीनी","en":"Sugar","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":198,"n":"गुड़","en":"Jaggery","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":60,"min":10,"hand":25,"pipe":0,"veg":true},{"id":199,"n":"मिश्री","en":"Rock Sugar","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":200,"n":"शहद","en":"Honey","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":201,"n":"खांड / देसी खांड","en":"Raw Sugar","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":202,"n":"ब्राउन शुगर","en":"Brown Sugar","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":203,"n":"ग्लूकोज पाउडर","en":"Glucose Powder","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":204,"n":"बेकिंग पाउडर","en":"Baking Powder","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":205,"n":"बेकिंग सोडा","en":"Baking Soda","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":206,"n":"यीस्ट","en":"Yeast","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":207,"n":"कोको पाउडर","en":"Cocoa Powder","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":208,"n":"चॉकलेट","en":"Chocolate","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":209,"n":"वनीला एसेंस","en":"Vanilla Essence","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":210,"n":"कस्टर्ड पाउडर","en":"Custard Powder","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":211,"n":"जिलेटिन (शाकाहारी विकल्प जांचें)","en":"Gelatin (check vegetarian alternative)","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":212,"n":"अगर-अगर","en":"Agar-Agar","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":213,"n":"फूड कलर","en":"Food Colour","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":214,"n":"गुलाब जल","en":"Rose Water","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":215,"n":"केवड़ा जल","en":"Kewra Water","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":216,"n":"केसर","en":"Saffron","c":"J. चीनी, मिठास एवं बेकरी सामग्री | Sweeteners & Baking Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":217,"n":"आम का अचार","en":"Mango Pickle","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":218,"n":"नींबू का अचार","en":"Lemon Pickle","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":219,"n":"मिर्च का अचार","en":"Chilli Pickle","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":220,"n":"मिक्स अचार","en":"Mixed Pickle","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":221,"n":"हरी चटनी","en":"Green Chutney","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":222,"n":"इमली की चटनी","en":"Tamarind Chutney","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":223,"n":"लहसुन की चटनी","en":"Garlic Chutney","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":224,"n":"नारियल चटनी","en":"Coconut Chutney","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":225,"n":"टमाटर सॉस","en":"Tomato Ketchup","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":226,"n":"सोया सॉस","en":"Soy Sauce","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":227,"n":"चिली सॉस","en":"Chilli Sauce","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":228,"n":"सिरका","en":"Vinegar","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":229,"n":"मेयोनेज़ (शाकाहारी)","en":"Vegetarian Mayonnaise","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":230,"n":"मस्टर्ड सॉस","en":"Mustard Sauce","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":231,"n":"टोमैटो प्यूरी","en":"Tomato Puree","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":232,"n":"टमाटर पेस्ट","en":"Tomato Paste","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":233,"n":"नारियल दूध","en":"Coconut Milk","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":234,"n":"वेज स्टॉक क्यूब","en":"Vegetable Stock Cube","c":"K. अचार, चटनी, सॉस एवं अन्य | Pickles, Chutneys, Sauces & Condiments","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":235,"n":"जलेबी","en":"Jalebi","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":236,"n":"गुलाब जामुन","en":"Gulab Jamun","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":237,"n":"रसगुल्ला","en":"Rasgulla","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":238,"n":"बर्फी","en":"Barfi","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":239,"n":"पेड़ा","en":"Peda","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":240,"n":"लड्डू","en":"Ladoo","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":241,"n":"बेसन लड्डू","en":"Besan Ladoo","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":242,"n":"मोतीचूर लड्डू","en":"Motichoor Ladoo","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":243,"n":"हलवा","en":"Halwa","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":244,"n":"सूजी हलवा","en":"Sooji Halwa","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":245,"n":"गाजर हलवा","en":"Carrot Halwa","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":246,"n":"मूंग दाल हलवा","en":"Moong Dal Halwa","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":247,"n":"खीर","en":"Kheer","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":248,"n":"फिरनी","en":"Phirni","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":249,"n":"शीर खुरमा","en":"Sheer Khurma","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":250,"n":"सेवई खीर","en":"Vermicelli Kheer","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":251,"n":"रबड़ी","en":"Rabri","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":252,"n":"कुल्फी","en":"Kulfi","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":253,"n":"आइसक्रीम","en":"Ice Cream","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":254,"n":"कस्टर्ड","en":"Custard","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":255,"n":"श्रीखंड","en":"Shrikhand","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":256,"n":"मालपुआ","en":"Malpua","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":257,"n":"घेवर","en":"Ghevar","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":258,"n":"मोहनथाल","en":"Mohanthal","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":259,"n":"काजू कतली","en":"Kaju Katli","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":260,"n":"केक","en":"Cake","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":261,"n":"बिस्कुट","en":"Biscuits","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":262,"n":"रस्क","en":"Rusk","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":263,"n":"खारी","en":"Puff Biscuits","c":"L. मिठाई एवं डेजर्ट सामग्री | Sweets & Dessert Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":264,"n":"चाय पत्ती","en":"Tea Leaves","c":"M. पेय पदार्थ | Beverages","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":265,"n":"ग्रीन टी","en":"Green Tea","c":"M. पेय पदार्थ | Beverages","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":266,"n":"कॉफी पाउडर","en":"Coffee Powder","c":"M. पेय पदार्थ | Beverages","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":267,"n":"इंस्टेंट कॉफी","en":"Instant Coffee","c":"M. पेय पदार्थ | Beverages","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":268,"n":"शरबत सिरप","en":"Sharbat Syrup","c":"M. पेय पदार्थ | Beverages","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":269,"n":"गुलाब शरबत","en":"Rose Syrup","c":"M. पेय पदार्थ | Beverages","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":270,"n":"खस शरबत","en":"Vetiver Syrup","c":"M. पेय पदार्थ | Beverages","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":271,"n":"रूह अफजा / रोज सिरप","en":"Rose Sharbat Syrup","c":"M. पेय पदार्थ | Beverages","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":272,"n":"जलजीरा पाउडर","en":"Jaljeera Powder","c":"M. पेय पदार्थ | Beverages","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":273,"n":"सत्तू","en":"Roasted Gram Flour","c":"M. पेय पदार्थ | Beverages","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":274,"n":"पीने का पानी","en":"Drinking Water","c":"M. पेय पदार्थ | Beverages","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":275,"n":"पैक्ड मिनरल वाटर","en":"Packaged Drinking Water","c":"M. पेय पदार्थ | Beverages","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":276,"n":"आम पन्ना","en":"Raw Mango Drink","c":"M. पेय पदार्थ | Beverages","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":277,"n":"लस्सी","en":"Lassi","c":"M. पेय पदार्थ | Beverages","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":278,"n":"छाछ मसाला","en":"Buttermilk Masala","c":"M. पेय पदार्थ | Beverages","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":279,"n":"साबुत चिकन","en":"Whole Chicken","c":"A. चिकन | Chicken","u":"kg","rate":220,"min":10,"hand":0,"pipe":0,"veg":false},{"id":280,"n":"चिकन करी कट","en":"Chicken Curry Cut","c":"A. चिकन | Chicken","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":281,"n":"चिकन ब्रेस्ट","en":"Chicken Breast","c":"A. चिकन | Chicken","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":282,"n":"चिकन थाई","en":"Chicken Thigh","c":"A. चिकन | Chicken","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":283,"n":"चिकन लेग पीस","en":"Chicken Leg","c":"A. चिकन | Chicken","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":284,"n":"चिकन ड्रमस्टिक","en":"Chicken Drumstick","c":"A. चिकन | Chicken","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":285,"n":"चिकन विंग्स","en":"Chicken Wings","c":"A. चिकन | Chicken","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":286,"n":"बोनलेस चिकन","en":"Boneless Chicken","c":"A. चिकन | Chicken","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":287,"n":"चिकन कीमा","en":"Chicken Mince","c":"A. चिकन | Chicken","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":288,"n":"चिकन सूप बोन","en":"Chicken Soup Bones","c":"A. चिकन | Chicken","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":289,"n":"चिकन स्टॉक","en":"Chicken Stock","c":"A. चिकन | Chicken","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":290,"n":"बकरे का मटन","en":"Goat Meat","c":"B. मटन एवं अन्य लाल मांस | Mutton & Red Meat","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":291,"n":"मटन करी कट","en":"Mutton Curry Cut","c":"B. मटन एवं अन्य लाल मांस | Mutton & Red Meat","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":292,"n":"बोनलेस मटन","en":"Boneless Mutton","c":"B. मटन एवं अन्य लाल मांस | Mutton & Red Meat","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":293,"n":"मटन कीमा","en":"Mutton Mince","c":"B. मटन एवं अन्य लाल मांस | Mutton & Red Meat","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":294,"n":"मटन लीवर","en":"Mutton Liver","c":"B. मटन एवं अन्य लाल मांस | Mutton & Red Meat","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":295,"n":"मटन पाया","en":"Goat Trotters","c":"B. मटन एवं अन्य लाल मांस | Mutton & Red Meat","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":296,"n":"मटन बोन","en":"Mutton Bones","c":"B. मटन एवं अन्य लाल मांस | Mutton & Red Meat","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":297,"n":"मटन स्टॉक","en":"Mutton Stock","c":"B. मटन एवं अन्य लाल मांस | Mutton & Red Meat","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":298,"n":"मुर्गी के अंडे","en":"Chicken Eggs","c":"C. अंडे | Eggs","u":"piece","rate":8,"min":100,"hand":0,"pipe":0,"veg":false},{"id":299,"n":"सफेद अंडे","en":"White Eggs","c":"C. अंडे | Eggs","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":300,"n":"अंडा पाउडर","en":"Egg Powder","c":"C. अंडे | Eggs","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":301,"n":"चिकन मसाला","en":"Chicken Masala","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":302,"n":"मटन मसाला","en":"Mutton Masala","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":303,"n":"मीट मसाला","en":"Meat Masala","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":304,"n":"कबाब मसाला","en":"Kebab Masala","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":305,"n":"तंदूरी मसाला","en":"Tandoori Masala","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":306,"n":"टिक्का मसाला","en":"Tikka Masala","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":307,"n":"पेरी-पेरी मसाला","en":"Peri-Peri Seasoning","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":308,"n":"चिकन स्टॉक क्यूब","en":"Chicken Stock Cube","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":309,"n":"मटन स्टॉक क्यूब","en":"Mutton Stock Cube","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":310,"n":"फिश सॉस","en":"Fish Sauce","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":311,"n":"ऑयस्टर सॉस","en":"Oyster Sauce","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":false},{"id":312,"n":"वूस्टरशायर सॉस","en":"Worcestershire Sauce","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":313,"n":"बार्बेक्यू सॉस","en":"Barbecue Sauce","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":314,"n":"हॉट सॉस","en":"Hot Sauce","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"L","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":315,"n":"सरसों का पेस्ट","en":"Mustard Paste","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":316,"n":"नींबू का रस","en":"Lemon Juice","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":317,"n":"अदरक-लहसुन पेस्ट","en":"Ginger-Garlic Paste","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":318,"n":"कच्चे पपीते का पेस्ट","en":"Raw Papaya Paste","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":319,"n":"कॉर्नफ्लोर","en":"Cornflour","c":"F. मांसाहारी व्यंजनों के विशेष मसाले एवं सामग्री | Non-Veg Specific Ingredients","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":320,"n":"गैस सिलेंडर / पाइप्ड गैस","en":"LPG Cylinder / Piped Gas","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":321,"n":"डिशवॉश लिक्विड","en":"Dishwashing Liquid","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":322,"n":"डिशवॉश पाउडर","en":"Dishwashing Powder","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":323,"n":"फूड-सेफ सैनिटाइजर","en":"Food-Safe Sanitizer","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":324,"n":"सतह क्लीनर","en":"Surface Cleaner","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":325,"n":"फर्श क्लीनर","en":"Floor Cleaner","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":326,"n":"बर्तन साफ करने का स्क्रबर","en":"Dish Scrubber","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":327,"n":"स्टील स्क्रबर","en":"Steel Scrubber","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":328,"n":"सफाई ब्रश","en":"Cleaning Brush","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":329,"n":"पोछा","en":"Mop","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":330,"n":"झाड़ू","en":"Broom","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":331,"n":"कचरा बैग","en":"Garbage Bag","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":332,"n":"हैंडवॉश","en":"Hand Wash","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":333,"n":"हैंड सैनिटाइजर","en":"Hand Sanitizer","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":334,"n":"पेपर टॉवल","en":"Paper Towel","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":335,"n":"डिस्पोजेबल ग्लव्स","en":"Disposable Gloves","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":336,"n":"एप्रन","en":"Apron","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":337,"n":"हेयरनेट","en":"Hairnet","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":338,"n":"फेस मास्क","en":"Face Mask","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":339,"n":"फर्स्ट-एड किट","en":"First Aid Kit","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"piece","rate":0,"min":0,"hand":0,"pipe":0,"veg":true},{"id":340,"n":"कीट नियंत्रण सामग्री","en":"Pest Control Supplies","c":"सफाई एवं अन्य सामग्री | Cleaning & Consumables","u":"kg","rate":0,"min":0,"hand":0,"pipe":0,"veg":true}],
+indents:[],pos:[],cook:{},dist:{},users:seedUsers()}}
+function load(){try{S=JSON.parse(localStorage.getItem(K))}catch(e){}if(!S)S=seed();if(!S.users)S.users=seedUsers()}
+function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}}
+const I=i=>S.items.find(x=>x.id==i);
+const nm=i=>i.en?(i.n+' / '+i.en):i.n;
+const money=n=>'₹'+Math.round(n).toLocaleString('en-IN');
+function reserved(i){let q=0;S.indents.filter(x=>x.st=='Approved').forEach(x=>x.l.forEach(l=>{if(l[0]==i)q+=l[1]}));return q}
+function tbl(h,r){return `<div class="w"><table><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>${r.map(x=>`<tr>${x.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')||`<tr><td colspan=${h.length}>अभी कोई डेटा नहीं</td></tr>`}</table></div>`}
+function dtl(){return `<div class="r"><b>तारीख:</b><input type="date" value="${D}" onchange="D=this.value;go(tab)"></div>`}
+function go(t){tab=t;render()}
+function canEditIndent(){return U.isAdmin||U.approve}
+
+function login(){const u=document.getElementById('u').value.trim().toLowerCase(),p=document.getElementById('p').value;const usr=S.users.find(x=>x.u.toLowerCase()==u&&x.p==p);if(usr){U=usr;tab='dash';render()}else alert('यूज़र नाम या पासवर्ड गलत है')}
+function out(){U=null;render()}
+function setCatFilter(v){menuCatFilter=v;render()}
+function changeMyPassword(){
+ const cur=prompt('वर्तमान पासवर्ड');
+ if(cur===null)return;
+ if(cur!==U.p){alert('वर्तमान पासवर्ड गलत है');return}
+ const np=prompt('नया पासवर्ड');
+ if(!np)return;
+ const cf=prompt('नया पासवर्ड दोबारा भरें');
+ if(np!==cf){alert('पासवर्ड मेल नहीं खाता');return}
+ const usr=S.users.find(x=>x.u==U.u);usr.p=np;U.p=np;save();alert('पासवर्ड बदल गया');
 }
-*{box-sizing:border-box;}
-body{margin:0;font-family:"Noto Sans Devanagari","Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);}
-.hidden{display:none !important;}
-button{cursor:pointer;font-family:inherit;}
-input,select,textarea{font-family:inherit;padding:8px;border:1px solid var(--border);border-radius:6px;width:100%;margin:4px 0 12px 0;font-size:14px;}
-label{font-weight:600;font-size:13px;color:#555;}
 
-/* Login */
-.login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#c0392b,#e67e22);}
-.login-box{background:var(--card);padding:36px;border-radius:14px;width:360px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.25);text-align:center;}
-.login-box h1{font-size:20px;margin-bottom:4px;}
-.lang-toggle-login{margin:8px 0 20px;}
-.lang-btn{background:none;border:none;color:var(--primary);font-weight:600;text-decoration:underline;}
-.btn-primary{background:var(--primary);color:#fff;border:none;padding:10px 16px;border-radius:8px;width:100%;font-size:15px;font-weight:600;}
-.btn-primary:hover{background:var(--primary-dark);}
-.btn-secondary{background:#eee;color:#333;border:none;padding:10px 16px;border-radius:8px;margin-left:8px;}
-.btn-danger{background:var(--danger);color:#fff;}
-.btn-small{background:#eee;border:none;padding:6px 10px;border-radius:6px;font-size:13px;margin-left:6px;}
-.error-text{color:var(--danger);font-size:13px;}
-.hint{font-size:11px;color:#999;margin-top:16px;}
+function findIndent(d,create){let x=S.indents.find(y=>y.date==d);if(!x&&create){x={id:S.indents.reduce((m,y)=>Math.max(m,y.id),0)+1,date:d,th:150,menuName:'',l:[],st:'Draft',val:0};S.indents.push(x);save()}return x}
+function getDist(d){if(!S.dist[d]){const th=(findIndent(d)||{}).th||0;S.dist[d]=[['रूट A',Math.round(th*.4),0],['रूट B',Math.round(th*.35),0],['रूट C',th-Math.round(th*.4)-Math.round(th*.35),0]]}return S.dist[d]}
+function dayCost(d){return S.indents.filter(x=>x.issued==d).reduce((a,x)=>a+x.val,0)}
+function delivered(d){return getDist(d).reduce((a,r)=>a+r[2],0)}
+function vegBadge(x){if(!x.l.length)return '';const nv=x.l.some(l=>I(l[0])&&I(l[0]).veg===false);const allnv=x.l.every(l=>I(l[0])&&I(l[0]).veg===false);return nv?(allnv?'<span class="tag bad">Non-Veg</span>':'<span class="tag">Mixed</span>'):'<span class="tag good">Veg</span>'}
 
-/* App shell */
-.app-shell{min-height:100vh;display:flex;flex-direction:column;}
-.topbar{background:var(--primary);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;position:sticky;top:0;z-index:10;}
-.topbar-left{display:flex;align-items:center;gap:10px;}
-.brand{font-weight:700;font-size:17px;}
-.hamburger{background:none;border:none;color:#fff;font-size:22px;display:none;}
-.topbar-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-.user-info{font-size:13px;background:rgba(255,255,255,.15);padding:4px 10px;border-radius:12px;}
-.lang-btn{color:#fff;background:rgba(255,255,255,.15);border:none;padding:5px 8px;border-radius:6px;font-size:12px;}
+/* menu + indent actions */
+function setMenuName(id,v){const x=S.indents.find(y=>y.id==id);x.menuName=v;save()}
+function setThCount(id,v){const x=S.indents.find(y=>y.id==id);x.th=+v||0;save();render()}
+function addLine(id){const sel=document.getElementById('ii'),qi=document.getElementById('iq');const iid=+sel.value,q=parseFloat(qi.value);if(!(q>0))return alert('मात्रा दर्ज करें');const x=S.indents.find(y=>y.id==id);const ex=x.l.find(l=>l[0]==iid);if(ex)ex[1]+=q;else x.l.push([iid,q]);save();render()}
+function addCustom(id){const n=prompt('नए आइटम का नाम');if(!n)return;const u=prompt('इकाई (kg/L/piece)','kg')||'kg';const q=parseFloat(prompt('आवश्यक मात्रा'));if(!(q>0))return;const veg=confirm('क्या यह Veg आइटम है? OK = Veg, Cancel = Non-Veg');const rate=parseFloat(prompt('अनुमानित दर (यदि पता हो)','0'))||0;
+const nid=S.items.reduce((m,i)=>Math.max(m,i.id),-1)+1;S.items.push({id:nid,n,en:'',c:'',u,rate,min:0,hand:0,pipe:0,veg});
+const x=S.indents.find(y=>y.id==id);x.l.push([nid,q]);save();render()}
+function editLine(id,li){const x=S.indents.find(y=>y.id==id);const v=parseFloat(prompt('नई मात्रा',x.l[li][1]));if(v>0){x.l[li][1]=v;save();render()}}
+function delLine(id,li){const x=S.indents.find(y=>y.id==id);x.l.splice(li,1);save();render()}
+function setSt(id,st){S.indents.find(x=>x.id==id).st=st;save();render()}
+function issue(id){const x=S.indents.find(y=>y.id==id);const bad=x.l.filter(l=>I(l[0]).hand<l[1]);if(bad.length)return alert('स्टॉक कम है: '+bad.map(l=>I(l[0]).n).join(', '));
+let v=0;x.l.forEach(l=>{I(l[0]).hand-=l[1];v+=l[1]*I(l[0]).rate});x.val=v;x.st='Issued';x.issued=D;save();render()}
 
-.body-wrap{display:flex;flex:1;}
-.sidebar{width:230px;background:#2c2c2c;color:#eee;min-height:100%;padding:10px 0;}
-.sidebar ul{list-style:none;margin:0;padding:0;}
-.sidebar li{padding:12px 20px;cursor:pointer;font-size:14px;border-left:4px solid transparent;}
-.sidebar li:hover{background:#3a3a3a;}
-.sidebar li.active{background:#3a3a3a;border-left-color:var(--accent);font-weight:600;}
-.main-content{flex:1;padding:20px;max-width:1100px;}
+/* procurement */
+function newPO(i){const q=parseFloat(prompt('मात्रा ('+I(i).u+') – '+nm(I(i)),Math.max(I(i).min*2-I(i).hand,1)));if(!(q>0))return;const r=parseFloat(prompt('दर',I(i).rate))||I(i).rate;const v=prompt('विक्रेता (Vendor)','स्थानीय मंडी')||'-';
+S.pos.push({id:S.pos.length+1,v,i,q,r,st:'Approved',date:D});I(i).pipe+=q;save();render()}
+function recv(id){const p=S.pos.find(x=>x.id==id);const q=parseFloat(prompt('प्राप्त मात्रा (बाकी '+p.q+')',p.q));if(!(q>0))return;const it=I(p.i),rq=Math.min(q,p.q);
+it.rate=(it.hand*it.rate+rq*p.r)/(it.hand+rq);it.hand+=rq;it.pipe-=rq;p.q-=rq;if(p.q<=0)p.st='Received';else p.st='Partial';save();render()}
 
-/* Cards / tables */
-.card{background:var(--card);border-radius:10px;padding:18px;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,.08);}
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px;}
-.kpi-card{background:var(--card);border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08);border-top:4px solid var(--primary);}
-.kpi-card .kpi-value{font-size:26px;font-weight:700;color:var(--primary-dark);}
-.kpi-card .kpi-label{font-size:12px;color:#777;}
-
-table{width:100%;border-collapse:collapse;font-size:13px;}
-th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;}
-th{background:#f0ede8;font-size:12px;text-transform:uppercase;color:#666;}
-tr:hover{background:#fafafa;}
-.tag{padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;}
-.tag-veg{background:#eafaf1;color:#1e8449;border:1px solid #1e8449;}
-.tag-nonveg{background:#fdedec;color:#a93226;border:1px solid #a93226;}
-.tag-pending{background:#fef5e7;color:#b9770e;}
-.tag-approved{background:#eafaf1;color:#1e8449;}
-.tag-rejected{background:#fdedec;color:#a93226;}
-.tag-partial{background:#eaf2fb;color:#2e5f9e;}
-.tag-received,.tag-full{background:#eafaf1;color:#1e8449;}
-
-.form-row{display:flex;gap:12px;flex-wrap:wrap;}
-.form-row > div{flex:1;min-width:160px;}
-.section-title{font-size:16px;font-weight:700;margin-bottom:10px;color:var(--primary-dark);}
-.small-btn{padding:4px 10px;font-size:12px;border-radius:6px;border:1px solid var(--border);background:#fff;}
-.add-row-btn{background:var(--accent);color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:13px;}
-.remove-row-btn{background:var(--danger);color:#fff;border:none;padding:4px 8px;border-radius:6px;font-size:12px;}
-.shortfall{color:var(--danger);font-weight:700;}
-.ok-stock{color:var(--accent);font-weight:700;}
-
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:100;}
-.modal-box{background:#fff;padding:24px;border-radius:12px;width:360px;max-width:90vw;}
-
-.toast{position:fixed;bottom:20px;right:20px;background:#333;color:#fff;padding:12px 18px;border-radius:8px;z-index:200;font-size:14px;}
-.toast.error{background:var(--danger);}
-.toast.success{background:var(--accent);}
-
-@media(max-width:768px){
-  .hamburger{display:block;}
-  .sidebar{position:fixed;left:-230px;top:52px;bottom:0;transition:left .2s;z-index:50;}
-  .sidebar.open{left:0;}
-  .main-content{padding:12px;}
+/* stock excel */
+function dlTemplate(){
+ const rows=[['Item Name (Hindi)','Item Name (English)','Category','Unit','Rate','Min Stock','Current Stock (Hand)','Veg/Non-Veg']];
+ S.items.forEach(i=>rows.push([i.n,i.en||'',i.c||'',i.u,i.rate,i.min,i.hand,i.veg===false?'Non-Veg':'Veg']));
+ const ws=XLSX.utils.aoa_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Stock');
+ XLSX.writeFile(wb,'FMB_Stock_Template.xlsx');
+}
+function upXlsx(inp){
+ const f=inp.files[0];if(!f)return;const rd=new FileReader();
+ rd.onload=e=>{try{
+  const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+  let added=0,updated=0;
+  rows.forEach(r=>{
+   const n=(r['Item Name (Hindi)']||r['Item Name']||r['Item']||'').toString().trim();
+   const en=(r['Item Name (English)']||r['English Name']||'').toString().trim();
+   if(!n&&!en)return;
+   const c=(r['Category']||'').toString().trim();
+   const u=(r['Unit']||'kg').toString().trim();
+   const rate=parseFloat(r['Rate'])||0;
+   const min=parseFloat(r['Min Stock'])||0;
+   const hraw=r['Current Stock (Hand)']!==undefined&&r['Current Stock (Hand)']!==''?r['Current Stock (Hand)']:r['Current Stock'];
+   const hand=parseFloat(hraw)||0;
+   const veg=!/non/i.test((r['Veg/Non-Veg']||'Veg').toString());
+   let it=S.items.find(x=>(n&&x.n.toLowerCase()==n.toLowerCase())||(en&&x.en&&x.en.toLowerCase()==en.toLowerCase()));
+   if(it){it.u=u;it.rate=rate;it.min=min;it.hand=hand;it.veg=veg;if(c)it.c=c;if(en)it.en=en;updated++}
+   else{const nid=S.items.reduce((m,i)=>Math.max(m,i.id),-1)+1;S.items.push({id:nid,n:n||en,en,c,u,rate,min,hand,pipe:0,veg});added++}
+  });
+  save();render();alert('अपलोड पूर्ण — नए: '+added+', अपडेट हुए: '+updated);
+ }catch(err){alert('फ़ाइल पढ़ने में त्रुटि: '+err.message)}};
+ rd.readAsArrayBuffer(f);
+ inp.value='';
 }
 
-</style>
-</head>
-<body>
+function cookSave(){S.cook[D]={done:+document.getElementById('cq').value||0,waste:+document.getElementById('cw').value||0};save();render()}
+function distSet(i){const r=getDist(D)[i];const v=parseInt(prompt(r[0]+': वितरित थाली (योजना '+r[1]+')',r[2]));if(v>=0){r[2]=v;save();render()}}
+function resetAll(){if(confirm('सारा डेटा हटाकर डेमो डेटा लौटाएँ?')){S=seed();save();render()}}
+let stockLowOnly=false;
+function toggleLow(){stockLowOnly=!stockLowOnly;render()}
 
-<!-- ===================== LOGIN SCREEN ===================== -->
-<div id="loginScreen" class="login-screen">
-  <div class="login-box">
-    <h1>🍲 FMB Kitchen Management System</h1>
-    <p class="lang-toggle-login">
-      <button onclick="setLang('hi')" class="lang-btn" id="langHiBtn">हिंदी</button> |
-      <button onclick="setLang('en')" class="lang-btn" id="langEnBtn">English</button>
-    </p>
-    <form id="loginForm">
-      <label data-i18n="email">Email</label>
-      <input type="email" id="loginEmail" required autocomplete="username">
-      <label data-i18n="password">Password / पासवर्ड</label>
-      <input type="password" id="loginPassword" required autocomplete="current-password">
-      <button type="submit" class="btn-primary" data-i18n="loginBtn">Login / लॉगिन करें</button>
-    </form>
-    <p><a href="#" onclick="showForgotPassword()" data-i18n="forgotPassword">Forgot Password? / पासवर्ड भूल गए?</a></p>
-    <p id="loginError" class="error-text"></p>
-    <p class="hint" data-i18n="firstTimeHint">First time setup? See README.md to create the first Admin user.</p>
-  </div>
+/* users */
+function userFormOpen(u){editUID=u?u.u:'new';render();setTimeout(()=>{if(u){document.getElementById('fu').value=u.u;document.getElementById('fu').disabled=true;document.getElementById('fp').value=u.p;document.getElementById('fn').value=u.name;document.getElementById('fa').checked=u.isAdmin;document.getElementById('fx').checked=u.approve;ALL_TABS.forEach(t=>{const el=document.getElementById('ft_'+t);if(el)el.checked=u.tabs.includes(t)})}},0)}
+function userFormClose(){editUID=null;render()}
+function saveUser(){
+ const uEl=document.getElementById('fu'),isEdit=uEl.disabled;
+ const u=uEl.value.trim().toLowerCase(),p=document.getElementById('fp').value,name=document.getElementById('fn').value.trim()||u;
+ if(!u||!p)return alert('यूज़रनेम और पासवर्ड ज़रूरी है');
+ if(!isEdit&&S.users.find(x=>x.u.toLowerCase()==u))return alert('यूज़रनेम पहले से मौजूद है');
+ const isAdmin=document.getElementById('fa').checked,approve=document.getElementById('fx').checked;
+ const tabs=ALL_TABS.filter(t=>{const el=document.getElementById('ft_'+t);return el&&el.checked});
+ if(isEdit){const ex=S.users.find(x=>x.u.toLowerCase()==u);ex.p=p;ex.name=name;ex.isAdmin=isAdmin;ex.approve=approve;ex.tabs=isAdmin?ALL_TABS.slice():tabs;}
+ else{S.users.push({u,p,name,isAdmin,approve,tabs:isAdmin?ALL_TABS.slice():tabs})}
+ save();editUID=null;render();
+}
+function delUser(u){if(S.users.filter(x=>x.isAdmin).length<=1&&S.users.find(x=>x.u==u).isAdmin)return alert('अंतिम एडमिन को हटाया नहीं जा सकता');if(!confirm('क्या इस यूज़र को हटाएँ?'))return;S.users=S.users.filter(x=>x.u!=u);save();render()}
+
+const V={
+dash(){const x=findIndent(D)||{th:0,l:[],menuName:''};const th=x.th||0,dl=delivered(D),low=S.items.filter(i=>i.min>0&&i.hand<i.min);
+return dtl()+`<div class="g"><div class="card k"><span>आज की थाली (योजना)</span><div>${th}</div></div><div class="card k"><span>वितरित</span><div>${dl}</div></div><div class="card k"><span>आज का खर्च</span><div>${money(dayCost(D))}</div></div><div class="card k"><span>खर्च प्रति थाली</span><div>${dl?money(dayCost(D)/dl):'-'}</div></div><div class="card k"><span>लंबित इंडेंट</span><div>${S.indents.filter(y=>['Submitted','Approved'].includes(y.st)).length}</div></div><div class="card k"><span>लंबित PO</span><div>${S.pos.filter(y=>y.st!='Received').length}</div></div></div>
+<div class="card"><h3>आज का मेन्यू ${vegBadge(x)}</h3>${x.menuName?x.menuName:(x.l.length?x.l.map(l=>I(l[0]).n).join(', '):'मेन्यू तय नहीं')}</div>
+<div class="card"><h3>स्टॉक चेतावनी (${low.length})</h3>${low.length?low.map(i=>`<div class="bad">${nm(i)}: ${i.hand} ${i.u} (न्यूनतम ${i.min})</div>`).join(''):'सब ठीक है'}</div>
+<div class="card"><h3>स्टॉक मूल्य</h3><b>${money(S.items.reduce((a,i)=>a+i.hand*i.rate,0))}</b> हाथ में · <b>${money(S.items.reduce((a,i)=>a+i.pipe*i.rate,0))}</b> पाइपलाइन में</div>`},
+
+menu(){const x=findIndent(D,true);const editable=x.st=='Draft'||(x.st!='Issued'&&canEditIndent());
+return dtl()+`
+<div class="card"><h3>मेन्यू विवरण ${vegBadge(x)}</h3>
+<div class="r"><input id="mn" placeholder="मेन्यू का नाम (जैसे दाल-चावल-सब्ज़ी-रोटी)" value="${x.menuName||''}" onchange="setMenuName(${x.id},this.value)" style="flex:1;min-width:220px">
+<span>थाली संख्या <input type="number" style="width:90px" value="${x.th}" onchange="setThCount(${x.id},this.value)"></span></div>
 </div>
-
-<!-- ===================== FORGOT PASSWORD MODAL ===================== -->
-<div id="forgotModal" class="modal hidden">
-  <div class="modal-box">
-    <h3 data-i18n="resetPasswordTitle">Reset Password / पासवर्ड रीसेट करें</h3>
-    <input type="email" id="resetEmail" placeholder="Email" data-i18n-placeholder="email">
-    <button class="btn-primary" onclick="sendResetEmail()" data-i18n="sendResetLink">Send Reset Link / लिंक भेजें</button>
-    <button class="btn-secondary" onclick="closeModal('forgotModal')" data-i18n="cancel">Cancel / रद्द करें</button>
-    <p id="resetMsg"></p>
-  </div>
+<div class="card"><h3>सामग्री की आवश्यकता (इंडेंट) ${x.st!='Draft'&&editable?'<span class="tag">एडमिन एडिट</span>':''}</h3>
+${editable?(()=>{const cats=[...new Set(S.items.map(i=>i.c).filter(Boolean))].sort();const filt=menuCatFilter?S.items.filter(i=>i.c==menuCatFilter):S.items;return `<div class="r"><label class="sub">श्रेणी फ़िल्टर:</label><select id="catf" onchange="setCatFilter(this.value)"><option value="">सभी श्रेणियाँ (${S.items.length})</option>${cats.map(c=>`<option value="${c.replace(/"/g,'&quot;')}" ${menuCatFilter==c?'selected':''}>${c.split('|').pop().trim()}</option>`).join('')}</select></div>
+<div class="r"><select id="ii">${filt.map(i=>`<option value="${i.id}">${nm(i)} ${i.veg===false?'🔴N-V':'🟢V'} — उपलब्ध ${i.hand} ${i.u}</option>`).join('')}</select>
+<input id="iq" type="number" placeholder="आवश्यक मात्रा" style="width:150px">
+<button class="b" onclick="addLine(${x.id})">+ जोड़ें</button>
+<button class="b s" onclick="addCustom(${x.id})">+ नया आइटम (स्टॉक में नहीं)</button></div>`})():''}
+${tbl(['सामग्री','आवश्यक','उपलब्ध स्टॉक',editable?'':''],
+ x.l.map((l,li)=>{const it=I(l[0]);const short=it.hand<l[1];
+ return[(it.veg===false?'<span class="dot" style="background:var(--bad)"></span>':'<span class="dot" style="background:var(--good)"></span>')+nm(it),l[1]+' '+it.u,short?`<span class="bad">${it.hand} ${it.u} (कमी)</span>`:it.hand+' '+it.u,
+ editable?`<button class="b s" onclick="editLine(${x.id},${li})">बदलें</button><button class="b x" onclick="delLine(${x.id},${li})">हटाएँ</button>`:'']}))}
 </div>
+<div class="card"><h3>स्थिति: <span class="tag">${x.st}</span></h3>
+${x.st=='Draft'&&x.l.length?`<button class="b" onclick="setSt(${x.id},'Submitted')">जमा करें</button>`:''}
+${x.st=='Submitted'&&canEditIndent()?`<button class="b" onclick="setSt(${x.id},'Approved')">मंज़ूर करें</button><button class="b x" onclick="setSt(${x.id},'Rejected')">अस्वीकार करें</button>`:''}
+</div>`},
 
-<!-- ===================== MAIN APP (after login) ===================== -->
-<div id="appShell" class="app-shell hidden">
-  <header class="topbar">
-    <div class="topbar-left">
-      <button id="hamburgerBtn" class="hamburger" onclick="toggleSidebar()">☰</button>
-      <span class="brand">🍲 FMB Kitchen</span>
-    </div>
-    <div class="topbar-right">
-      <span id="userInfo" class="user-info"></span>
-      <button onclick="setLang('hi')" class="lang-btn">हिंदी</button>
-      <button onclick="setLang('en')" class="lang-btn">EN</button>
-      <button class="btn-small" onclick="showChangePassword()" data-i18n="changePassword">Change Password</button>
-      <button class="btn-small btn-danger" onclick="logout()" data-i18n="logout">Logout</button>
-    </div>
-  </header>
-
-  <div class="body-wrap">
-    <nav id="sidebar" class="sidebar">
-      <ul id="navList"><!-- populated by JS based on permissions --></ul>
-    </nav>
-
-    <main id="mainContent" class="main-content">
-      <!-- module content injected here by JS -->
-    </main>
-  </div>
+store(){const rel=S.indents.filter(x=>['Approved','Issued'].includes(x.st));
+return `<div class="card"><h3>इश्यू के लिए मंज़ूर इंडेंट (आइटम-वाइज़)</h3>
+${rel.length?rel.map(x=>`<div class="card" style="background:var(--bg)"><h3>#${x.id} · ${x.date} · ${x.menuName||'-'} <span class="tag">${x.st}</span></h3>
+${tbl(['सामग्री','आवश्यक','उपलब्ध स्टॉक'],x.l.map(l=>{const it=I(l[0]);const short=it.hand<l[1];return[nm(it),l[1]+' '+it.u,short?`<span class="bad">${it.hand} ${it.u} (कमी)</span>`:it.hand+' '+it.u]}))}
+${x.st=='Approved'?`<button class="b" onclick="issue(${x.id})">इश्यू करें</button>`:`<p class="sub">इश्यू हो चुका है · ${money(x.val)}</p>`}
+</div>`).join(''):tbl(['-'],[])}
 </div>
+<div class="card"><h3>रिसीविंग (PO के विरुद्ध)</h3>${tbl(['PO','सामग्री','बाकी','दर','विक्रेता',''],S.pos.filter(p=>p.st!='Received').map(p=>[p.id,nm(I(p.i)),p.q+' '+I(p.i).u,p.r,p.v,`<button class="b" onclick="recv(${p.id})">प्राप्त करें</button>`]))}</div>`},
 
-<!-- ===================== CHANGE PASSWORD MODAL ===================== -->
-<div id="changePwModal" class="modal hidden">
-  <div class="modal-box">
-    <h3 data-i18n="changePassword">Change Password / पासवर्ड बदलें</h3>
-    <label data-i18n="newPassword">New Password / नया पासवर्ड</label>
-    <input type="password" id="newPassword">
-    <button class="btn-primary" onclick="changeMyPassword()" data-i18n="save">Save / सहेजें</button>
-    <button class="btn-secondary" onclick="closeModal('changePwModal')" data-i18n="cancel">Cancel / रद्द करें</button>
-    <p id="changePwMsg"></p>
-  </div>
+proc(){const sh=S.items.filter(i=>i.min>0&&i.hand+i.pipe<i.min*1.5);return `<div class="card"><h3>कमी वाली सामग्री (हाथ+पाइपलाइन)</h3>${tbl(['सामग्री','हाथ','पाइपलाइन','न्यूनतम',''],sh.map(i=>[nm(i),i.hand,i.pipe,i.min,`<button class="b" onclick="newPO(${i.id})">PO बनाएँ</button>`]))}</div>
+<div class="card"><h3>कोई भी आइटम खरीदें</h3><div class="r"><select id="pi">${S.items.map(i=>`<option value="${i.id}">${nm(i)}</option>`).join('')}</select><button class="b" onclick="newPO(+document.getElementById('pi').value)">PO बनाएँ</button></div></div>
+<div class="card"><h3>सभी PO</h3>${tbl(['PO','सामग्री','मात्रा','दर','विक्रेता','स्थिति'],S.pos.map(p=>[p.id,nm(I(p.i)),p.q,p.r,p.v,p.st]))}</div>`},
+
+stock(){const list=stockLowOnly?S.items.filter(i=>i.min>0&&i.hand<i.min):S.items;return `<div class="card"><h3>स्टॉक अपलोड (Excel) — मौजूदा स्टॉक चढ़ाने के लिए</h3>
+<div class="r"><button class="b s" onclick="dlTemplate()">टेम्पलेट डाउनलोड करें (पूरी सूची सहित)</button>
+<label class="b" style="cursor:pointer">Excel फ़ाइल चुनें<input type="file" accept=".xlsx,.xls" onchange="upXlsx(this)" style="display:none"></label></div>
+<p class="hint">Excel कॉलम: Item Name (Hindi), Item Name (English), Category, Unit, Rate, Min Stock, Current Stock (Hand), Veg/Non-Veg. मौजूदा नाम वाले आइटम अपडेट होंगे, नए आइटम जुड़ जाएँगे। मीट/अंडे सहित सभी आइटम टेम्पलेट में पहले से मौजूद हैं।</p>
 </div>
+<div class="card"><h3>स्टॉक: हाथ में / पाइपलाइन (${list.length}/${S.items.length}) <label class="chk"><input type="checkbox" onchange="toggleLow()" ${stockLowOnly?'checked':''}> केवल कम स्टॉक दिखाएँ</label></h3>${tbl(['सामग्री','श्रेणी','टाइप','हाथ में','आरक्षित','उपलब्ध','पाइपलाइन','अनुमानित','दर'],list.map(i=>{const r=reserved(i.id),a=i.hand-r;return[nm(i)+(i.min>0&&i.hand<i.min?' <span class="bad">●</span>':''),(i.c||'').split('|').pop().trim(),i.veg===false?'<span class="bad">Non-Veg</span>':'<span class="good">Veg</span>',i.hand+' '+i.u,r,a,i.pipe,a+i.pipe,'₹'+i.rate.toFixed(1)]}))}</div>`},
 
-<!-- Generic confirm/alert container -->
-<div id="toast" class="toast hidden"></div>
+cook(){const c=S.cook[D]||{},x=findIndent(D)||{th:0,menuName:''};return dtl()+`<div class="card"><h3>पकाई का रिकॉर्ड – ${x.menuName||'मेन्यू नहीं'}</h3><div class="r">पकाई गई थाली <input id="cq" type="number" style="width:100px" value="${c.done||x.th||0}"> बर्बादी (kg) <input id="cw" type="number" style="width:90px" value="${c.waste||0}"><button class="b" onclick="cookSave()">सेव</button></div>${c.done?`<p>सेव हुआ: ${c.done} थाली, बर्बादी ${c.waste} kg</p>`:''}</div>`},
 
-<script type="module">
-// ==========================================================================
-// FMB Kitchen Management System — single-file build
-// Sab kuch (config, database helpers, translations, permissions, auth,
-// screens/modules, navigation) is ek hi script mein combine kiya gaya hai
-// taaki sirf ek hi index.html file GitHub par upload karke deploy kiya ja sake.
-// ==========================================================================
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {
-  getAuth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
-  updatePassword, onAuthStateChanged, createUserWithEmailAndPassword
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {
-  getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc,
-  deleteDoc, query, where, orderBy, serverTimestamp, runTransaction
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+dist(){const r=getDist(D),p=r.reduce((a,x)=>a+x[1],0),d=delivered(D);return dtl()+`<div class="card"><h3>वितरण प्रगति: ${d}/${p}</h3><div class="bar"><i style="width:${p?d*100/p:0}%"></i></div></div><div class="card">${tbl(['रूट','योजना','वितरित',''],r.map((x,i)=>[x[0],x[1],x[2],`<button class="b" onclick="distSet(${i})">अपडेट</button>`]))}</div>`},
 
-// ---------------- Firebase config & init ----------------
-// ==========================================================================
-// FMB Kitchen Management System — Firebase Configuration
-// ==========================================================================
-// यहाँ अपने Firebase Project की जानकारी भरें (README.md के Step 2 अनुसार)।
-// Paste your own Firebase project keys here (see README.md Step 2).
-//
-// Firebase Console (https://console.firebase.google.com) में:
-//   Project Settings → General → "Your apps" → Web app → SDK config
-// से यह वैल्यूज़ कॉपी करें।
-// ==========================================================================
-const firebaseConfig = {
-  apiKey: "AIzaSyDb6XNZ9JrVs2-aTWMA8PrfTYtaOqQf0-A",
-  authDomain: "fmb-kitche.firebaseapp.com",
-  projectId: "fmb-kitche",
-  storageBucket: "fmb-kitche.firebasestorage.app",
-  messagingSenderId: "416278625789",
-  appId: "1:416278625789:web:08d93047acdc149d446d94"
+cost(){const ds=[...new Set(S.indents.filter(x=>x.issued).map(x=>x.issued))].sort().reverse();return `<div class="card"><h3>दिन-वार / मेन्यू-वार खर्च प्रति थाली</h3>${tbl(['तारीख','मेन्यू','खर्च','थाली','खर्च/थाली'],ds.map(d=>{const x=S.indents.find(y=>y.date==d);const t=delivered(d)||(x||{}).th||0;return[d,(x&&x.menuName)||'-',money(dayCost(d)),t,t?money(dayCost(d)/t):'-']}))}<p class="hint">खर्च = इश्यू की गई सामग्री × औसत दर। थाली = वितरित (न हो तो योजना)।</p></div>`},
+
+users(){const form=editUID!==null?`<div class="card"><h3>${editUID=='new'?'नया यूज़र बनाएँ':'यूज़र अपडेट करें'}</h3>
+<div class="r"><input id="fu" placeholder="यूज़र नाम"><input id="fp" placeholder="पासवर्ड"><input id="fn" placeholder="पूरा नाम" style="flex:1;min-width:180px"></div>
+<div class="r"><label class="chk"><input type="checkbox" id="fa" onchange="document.getElementById('tabsBox').style.display=this.checked?'none':'flex'"> एडमिन (सभी अधिकार)</label>
+<label class="chk"><input type="checkbox" id="fx"> इंडेंट मंज़ूर/एडिट अधिकार</label></div>
+<div><p class="sub">अनुमति प्राप्त टैब</p><div id="tabsBox" class="r">${ALL_TABS.map(t=>`<label class="chk"><input type="checkbox" id="ft_${t}"> ${NM[t]}</label>`).join('')}</div></div>
+<button class="b" onclick="saveUser()">सेव</button><button class="b x" onclick="userFormClose()">रद्द करें</button>
+</div>`:`<button class="b" onclick="userFormOpen(null)">+ नया यूज़र बनाएँ</button>`;
+return form+`<div class="card"><h3>यूज़र सूची</h3>${tbl(['यूज़रनेम','नाम','भूमिका','अनुमति प्राप्त टैब',''],S.users.map(u=>[u.u,u.name,u.isAdmin?'<span class="tag good">Admin</span>':(u.approve?'<span class="tag">Approver</span>':'-'),u.isAdmin?'सभी':u.tabs.map(t=>NM[t]).join(', '),`<button class="b s" onclick='userFormOpen(${JSON.stringify(u)})'>एडिट</button><button class="b x" onclick="delUser('${u.u}')">हटाएँ</button>`]))}</div>`}
 };
 
-// Initialize once, export for every other module to import.
-const firebaseApp = initializeApp(firebaseConfig);
-const auth = getAuth(firebaseApp);
-const db = getFirestore(firebaseApp);
-
-// Global fallback so inline onclick="" handlers (defined in module files)
-// can be attached to window from ES modules.
-window.__FMB_READY = true;
-
-// ---------------- db.js: Firestore helpers ----------------
-// ==========================================================================
-// db.js — Generic Firestore helper functions used by every module.
-// Har module in generic functions ka use karke Firestore se data
-// padhta/likhta hai — is se code chhota aur maintain karne mein aasaan rehta hai.
-// ==========================================================================
-// ---- generic helpers -----------------------------------------------------
-async function listAll(col){
-  const snap = await getDocs(collection(db, col));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+function render(){const a=document.getElementById('app');
+if(!U){a.innerHTML=`<div id="login" class="card"><h3>FMB रसोई प्रबंधन</h3><p class="hint">फ़ैज़ुल मवाइद अल बुरहानिया / Faiz ul Mawaid il Burhaniya</p><input id="u" placeholder="यूज़र नाम" autocapitalize="none"><input id="p" type="password" placeholder="पासवर्ड"><div class="r"><button class="b" onclick="login()">लॉगिन</button>${LB()}</div><p class="hint">डेमो: admin/admin123 · cook/cook123 · store/store123 · proc/proc123 · dist/dist123</p></div>`;
+if(lang=='en')translatePage();return}
+const t=U.isAdmin?ALL_TABS.concat(['users']):U.tabs;if(!t.includes(tab))tab=t[0]||'dash';
+a.innerHTML=`<header><div><b>FMB रसोई</b><small>${U.name}</small></div><div>${LB()}<button class="b s" onclick="changeMyPassword()">पासवर्ड बदलें</button><button class="b s" onclick="out()">लॉगआउट</button></div></header><nav>${t.map(x=>`<button class="${x==tab?'on':''}" onclick="go('${x}')">${NM[x]}</button>`).join('')}</nav><main>${V[tab]()}${U.isAdmin?'<p><button class="b x" onclick="resetAll()">डेमो डेटा रीसेट</button></p>':''}</main>`;
+if(lang=='en')translatePage();
 }
-
-async function getOne(col, id){
-  const s = await getDoc(doc(db, col, id));
-  return s.exists() ? { id: s.id, ...s.data() } : null;
-}
-
-async function addOne(col, data){
-  const ref = await addDoc(collection(db, col), { ...data, createdAt: serverTimestamp() });
-  return ref.id;
-}
-
-async function setOne(col, id, data){
-  await setDoc(doc(db, col, id), data);
-  return id;
-}
-
-async function updateOne(col, id, data){
-  await updateDoc(doc(db, col, id), data);
-}
-
-async function removeOne(col, id){
-  await deleteDoc(doc(db, col, id));
-}
-
-async function listWhere(col, field, op, value){
-  const q = query(collection(db, col), where(field, op, value));
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-}
-
-function todayStr(){
-  return new Date().toISOString().slice(0,10);
-}
-// ---- Stock helpers ---------------------------------------------------------
-// stock collection: doc id == ingredientId, fields { qtyInHand, qtyInPipeline }
-
-async function getStockMap(){
-  const rows = await listAll("stock");
-  const map = {};
-  rows.forEach(r => map[r.id] = r);
-  return map;
-}
-
-async function adjustStock(ingredientId, deltaInHand = 0, deltaPipeline = 0){
-  const ref = doc(db, "stock", ingredientId);
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    const cur = snap.exists() ? snap.data() : { qtyInHand: 0, qtyInPipeline: 0 };
-    const next = {
-      qtyInHand: Math.round(((cur.qtyInHand||0) + deltaInHand) * 1000) / 1000,
-      qtyInPipeline: Math.round(((cur.qtyInPipeline||0) + deltaPipeline) * 1000) / 1000
-    };
-    tx.set(ref, next, { merge: true });
-  });
-}
-
-async function addLedgerEntry(entry){
-  await addOne("stockLedger", { ...entry, date: entry.date || todayStr() });
-}
-
-// ---- Rate helper: Per-thali/Per-person costing MUST be based on the actual
-// Receiving/Purchase tab rate (not the old Ingredient Master rate field).
-// We take the MOST RECENT receiving rate recorded for each ingredient.
-async function getReceivingRateMap(){
-  const receivings = await listAll("receivings");
-  receivings.sort((a,b)=> (a.date||"").localeCompare(b.date||"")); // oldest -> newest
-  const map = {};
-  receivings.forEach(r=>{
-    (r.items||[]).forEach(it=>{
-      if (it.ingredientId && it.rate){ map[it.ingredientId] = Number(it.rate)||0; } // later overwrites earlier => latest wins
-    });
-  });
-  return map;
-}
-
-// Compute total cost / per-thali / per-person for one menu doc using a rate map.
-// Items without ingredientId (custom/open-field items) are skipped from cost
-// (their rate is unknown) but still counted for indent/requirement purposes elsewhere.
-function computeMenuCost(menu, rateMap){
-  const numThalis = Number(menu.numThalis)||0;
-  const numPersons = Number(menu.numPersons)||0;
-  let cost = 0;
-  (menu.items||[]).forEach(it=>{
-    if (!it.ingredientId) return; // custom item, rate unknown, excluded from cost
-    const rate = rateMap[it.ingredientId] || 0;
-    cost += (Number(it.qtyPerThali)||0) * numThalis * rate;
-  });
-  return {
-    cost,
-    perThali: numThalis ? cost/numThalis : 0,
-    perPerson: numPersons ? cost/numPersons : 0
-  };
-}
-
-
-// ---------------- i18n.js: Hindi/English translations ----------------
-// ==========================================================================
-// i18n.js — Hindi / English translation layer
-// ==========================================================================
-const STR = {
-  hi: {
-    email:"ईमेल", password:"पासवर्ड", loginBtn:"लॉगिन करें",
-    forgotPassword:"पासवर्ड भूल गए?", resetPasswordTitle:"पासवर्ड रीसेट करें",
-    sendResetLink:"लिंक भेजें", cancel:"रद्द करें", changePassword:"पासवर्ड बदलें",
-    newPassword:"नया पासवर्ड", save:"सहेजें", logout:"लॉगआउट",
-    firstTimeHint:"पहली बार सेटअप कर रहे हैं? पहला Admin यूजर बनाने के लिए README.md देखें।",
-    dashboard:"डैशबोर्ड", menu:"मेन्यू", ingredients:"सामग्री मास्टर", indent:"इंडेंट",
-    approval:"अप्रूवल", storeIssue:"स्टोर इश्यू", receiving:"रिसीविंग / खरीद",
-    procurement:"प्रोक्योरमेंट", distribution:"थाली वितरण", reports:"रिपोर्ट्स",
-    users:"यूज़र प्रबंधन", suppliers:"सप्लायर मास्टर",
-    todaysMenu:"आज का मेन्यू", thalisToPrepare:"आज कितनी थालियां बननी हैं",
-    thalisDistributed:"आज वितरित थालियां", todaysIndents:"आज के कुल इंडेंट",
-    pendingApproval:"पेंडिंग अप्रूवल इंडेंट", approvedIndents:"अप्रूव्ड इंडेंट",
-    pendingPurchase:"पेंडिंग परचेज़ आइटम", todaysConsumption:"आज की कुल सामग्री खपत",
-    todaysExpenditure:"आज का कुल किचन खर्च", perThaliExpenditure:"प्रति थाली खर्च",
-    addNew:"नया जोड़ें", name:"नाम", unit:"इकाई", type:"प्रकार", veg:"शाकाहारी", nonveg:"मांसाहारी",
-    category:"श्रेणी", action:"कार्य", edit:"संपादित करें", delete:"हटाएं",
-    menuName:"मेन्यू का नाम", date:"दिनांक", numThalis:"थालियों की संख्या",
-    selectIngredients:"सामग्री चुनें", qtyPerThali:"प्रति थाली मात्रा",
-    requiredQty:"आवश्यक मात्रा", availableStock:"उपलब्ध स्टॉक", shortfall:"कमी",
-    createIndent:"इंडेंट बनाएं", generateFromMenu:"मेन्यू से इंडेंट बनाएं",
-    addExtraItem:"अतिरिक्त सामग्री जोड़ें", status:"स्थिति", pending:"पेंडिंग",
-    approved:"स्वीकृत", rejected:"अस्वीकृत", approve:"स्वीकृत करें", reject:"अस्वीकार करें",
-    issueQty:"इश्यू मात्रा", issuedQty:"जारी की गई मात्रा", partial:"आंशिक", full:"पूर्ण",
-    submitIssue:"इश्यू सबमिट करें", supplier:"सप्लायर", rate:"दर", amount:"राशि",
-    purchaseOrder:"परचेज़ ऑर्डर", createPO:"PO बनाएं", ordered:"ऑर्डर किया गया",
-    partiallyReceived:"आंशिक प्राप्त", received:"प्राप्त हुआ", receiveEntry:"रिसीविंग एंट्री",
-    stockInHand:"उपलब्ध स्टॉक", stockInPipeline:"आ रहा स्टॉक (पाइपलाइन)",
-    stockLedger:"स्टॉक लेजर", preparedThalis:"तैयार थालियां", distributedThalis:"वितरित थालियां",
-    wastedThalis:"खराब/अनुपयोगी थालियां", distributionCenter:"वितरण केंद्र",
-    remainingThalis:"शेष थालियां", dailyReport:"दैनिक रिपोर्ट", createUser:"नया यूज़र बनाएं",
-    role:"रोल (भूमिका)", customRole:"कस्टम रोल बनाएं", permissions:"अधिकार",
-    view:"देखें", add:"जोड़ें", export:"एक्सपोर्ट", welcome:"स्वागत है", issue:"जारी करें",
-    submit:"सबमिट करें", close:"बंद करें", search:"खोजें", total:"कुल",
-    module:"मॉड्यूल", noData:"कोई डेटा उपलब्ध नहीं है", from:"स्रोत",
-    fromStock:"स्टॉक से", notInStock:"स्टॉक में उपलब्ध नहीं",
-    menuWiseExpenditure:"मेन्यू-वार खर्च", exportExcel:"Excel में एक्सपोर्ट करें",
-    accessDenied:"आपको इस पेज को देखने की अनुमति नहीं है।",
-    invalidLogin:"ईमेल या पासवर्ड गलत है।", resetLinkSent:"रीसेट लिंक भेज दिया गया है, अपना ईमेल जांचें।",
-    passwordChanged:"पासवर्ड सफलतापूर्वक बदला गया।", saved:"सफलतापूर्वक सहेजा गया।",
-    numPersons:"व्यक्तियों की संख्या", perPersonExpenditure:"प्रति व्यक्ति खर्च",
-    personsToServe:"आज कितने व्यक्तियों को भोजन", perPersonExp:"प्रति व्यक्ति खर्च रिपोर्ट",
-    bulkUpload:"बल्क अपलोड (सामग्री सूची)", chooseFile:"फाइल चुनें", defaultUnit:"डिफ़ॉल्ट इकाई",
-    uploadAndImport:"अपलोड और आयात करें", uploading:"आयात हो रहा है...",
-    customIngredient:"नई/कस्टम सामग्री (मास्टर में नहीं)", customIngName:"सामग्री का नाम लिखें",
-    addCustomItem:"कस्टम आइटम जोड़ें", searchIngredient:"सामग्री खोजें...", allCategories:"सभी श्रेणियां",
-    vendorName:"वेंडर / सप्लायर का नाम", permissionsMatrix:"अधिकार (मॉड्यूल अनुसार)",
-    editPermissions:"अधिकार संपादित करें", useCustomPerm:"कस्टम अधिकार इस्तेमाल करें (रोल की जगह)",
-    notAvailable:"उपलब्ध नहीं", rateNotSet:"दर उपलब्ध नहीं (कभी receive नहीं हुआ)",
-    itemsImported:"आइटम आयात किए गए", itemsSkipped:"आइटम स्किप किए गए (पहले से मौजूद)",
-  },
-  en: {
-    email:"Email", password:"Password", loginBtn:"Login",
-    forgotPassword:"Forgot Password?", resetPasswordTitle:"Reset Password",
-    sendResetLink:"Send Reset Link", cancel:"Cancel", changePassword:"Change Password",
-    newPassword:"New Password", save:"Save", logout:"Logout",
-    firstTimeHint:"First time setup? See README.md to create the first Admin user.",
-    dashboard:"Dashboard", menu:"Menu", ingredients:"Ingredient Master", indent:"Indent",
-    approval:"Approval", storeIssue:"Store Issue", receiving:"Receiving / Purchase",
-    procurement:"Procurement", distribution:"Thali Distribution", reports:"Reports",
-    users:"User Management", suppliers:"Supplier Master",
-    todaysMenu:"Today's Menu", thalisToPrepare:"Thalis to Prepare Today",
-    thalisDistributed:"Thalis Distributed Today", todaysIndents:"Today's Total Indents",
-    pendingApproval:"Pending Approval Indents", approvedIndents:"Approved Indents",
-    pendingPurchase:"Pending Purchase Items", todaysConsumption:"Today's Ingredient Consumption",
-    todaysExpenditure:"Today's Total Kitchen Expenditure", perThaliExpenditure:"Per Thali Expenditure",
-    addNew:"Add New", name:"Name", unit:"Unit", type:"Type", veg:"Veg", nonveg:"Non-Veg",
-    category:"Category", action:"Action", edit:"Edit", delete:"Delete",
-    menuName:"Menu Name", date:"Date", numThalis:"Number of Thalis",
-    selectIngredients:"Select Ingredients", qtyPerThali:"Qty per Thali",
-    requiredQty:"Required Qty", availableStock:"Available Stock", shortfall:"Shortfall",
-    createIndent:"Create Indent", generateFromMenu:"Generate Indent from Menu",
-    addExtraItem:"Add Extra Item", status:"Status", pending:"Pending",
-    approved:"Approved", rejected:"Rejected", approve:"Approve", reject:"Reject",
-    issueQty:"Issue Qty", issuedQty:"Issued Qty", partial:"Partial", full:"Full",
-    submitIssue:"Submit Issue", supplier:"Supplier", rate:"Rate", amount:"Amount",
-    purchaseOrder:"Purchase Order", createPO:"Create PO", ordered:"Ordered",
-    partiallyReceived:"Partially Received", received:"Received", receiveEntry:"Receiving Entry",
-    stockInHand:"Stock In Hand", stockInPipeline:"Stock In Pipeline",
-    stockLedger:"Stock Ledger", preparedThalis:"Prepared Thalis", distributedThalis:"Distributed Thalis",
-    wastedThalis:"Wasted/Unusable Thalis", distributionCenter:"Distribution Center",
-    remainingThalis:"Remaining Thalis", dailyReport:"Daily Report", createUser:"Create User",
-    role:"Role", customRole:"Create Custom Role", permissions:"Permissions",
-    view:"View", add:"Add", export:"Export", welcome:"Welcome", issue:"Issue",
-    submit:"Submit", close:"Close", search:"Search", total:"Total",
-    module:"Module", noData:"No data available", from:"Source",
-    fromStock:"From Stock", notInStock:"Not in Stock",
-    menuWiseExpenditure:"Menu-wise Expenditure", exportExcel:"Export to Excel",
-    accessDenied:"You do not have permission to view this page.",
-    invalidLogin:"Invalid email or password.", resetLinkSent:"Reset link sent, please check your email.",
-    passwordChanged:"Password changed successfully.", saved:"Saved successfully.",
-    numPersons:"Number of Persons", perPersonExpenditure:"Per Person Expenditure",
-    personsToServe:"Persons to Serve Today", perPersonExp:"Per Person Expenditure Report",
-    bulkUpload:"Bulk Upload (Ingredient List)", chooseFile:"Choose File", defaultUnit:"Default Unit",
-    uploadAndImport:"Upload & Import", uploading:"Importing...",
-    customIngredient:"New/Custom Ingredient (not in Master)", customIngName:"Type ingredient name",
-    addCustomItem:"Add Custom Item", searchIngredient:"Search ingredient...", allCategories:"All Categories",
-    vendorName:"Vendor / Supplier Name", permissionsMatrix:"Permissions (per module)",
-    editPermissions:"Edit Permissions", useCustomPerm:"Use custom permissions (override role)",
-    notAvailable:"Not available", rateNotSet:"Rate not available (never received yet)",
-    itemsImported:"items imported", itemsSkipped:"items skipped (already exist)",
-  }
-};
-
-let currentLang = localStorage.getItem("fmb_lang") || "hi";
-
-function t(key){
-  return (STR[currentLang] && STR[currentLang][key]) || (STR.en[key]) || key;
-}
-
-function applyStaticTranslations(){
-  document.querySelectorAll("[data-i18n]").forEach(el=>{
-    el.textContent = t(el.getAttribute("data-i18n"));
-  });
-  document.querySelectorAll("[data-i18n-placeholder]").forEach(el=>{
-    el.placeholder = t(el.getAttribute("data-i18n-placeholder"));
-  });
-  document.documentElement.lang = currentLang;
-}
-
-window.setLang = function(lang){
-  currentLang = lang;
-  localStorage.setItem("fmb_lang", lang);
-  applyStaticTranslations();
-  if (window.renderCurrentModule) window.renderCurrentModule();
-};
-
-applyStaticTranslations();
-
-// ---------------- permissions.js: Roles & permissions ----------------
-// ==========================================================================
-// permissions.js — Roles, default permission matrix, and access checks.
-//
-// Har module ke liye 6 action types: view, add, edit, approve, issue, export
-// Admin har Custom Role ke liye in 6 actions ko alag-alag ON/OFF kar sakta hai.
-// ==========================================================================
-
-const MODULES = [
-  "dashboard","ingredients","suppliers","menu","indent","approval",
-  "storeIssue","receiving","procurement","distribution","reports","perPersonExp","users"
-];
-const ACTIONS = ["view","add","edit","approve","issue","delete","export"];
-
-// Built-in default roles (Admin can still override per-user with custom roles)
-const DEFAULT_ROLE_PERMISSIONS = {
-  admin: allTrueForAllModules(),
-  cook: {
-    dashboard:{view:true},
-    menu:{view:true,add:true,edit:true},          // only if admin grants "canCreateMenu" flag on user
-    indent:{view:true},
-  },
-  storekeeper: {
-    dashboard:{view:true},
-    approval:{view:true},
-    storeIssue:{view:true,issue:true,edit:true},
-    receiving:{view:true,add:true},
-    reports:{view:true},
-  },
-  procurement: {
-    dashboard:{view:true},
-    indent:{view:true},
-    procurement:{view:true,add:true,edit:true},
-    suppliers:{view:true,add:true,edit:true},
-    reports:{view:true,export:true},
-  },
-  distribution: {
-    dashboard:{view:true},
-    distribution:{view:true,add:true,edit:true},
-    reports:{view:true},
-  }
-};
-
-function allTrueForAllModules(){
-  const p = {};
-  MODULES.forEach(m=>{ p[m] = {}; ACTIONS.forEach(a=> p[m][a] = true); });
-  return p;
-}
-
-/**
- * Resolve the effective permission object for a user.
- * user.permissions (custom, stored in Firestore users/{uid}) always wins;
- * otherwise fall back to DEFAULT_ROLE_PERMISSIONS[user.role].
- */
-function resolvePermissions(user){
-  if (!user) return {};
-  if (user.permissions && Object.keys(user.permissions).length){
-    return user.permissions;
-  }
-  return DEFAULT_ROLE_PERMISSIONS[user.role] || {};
-}
-
-function can(user, module, action){
-  if (!user) return false;
-  if (user.role === "admin") return true;
-  const perms = resolvePermissions(user);
-  return !!(perms[module] && perms[module][action]);
-}
-
-const MODULE_LABEL_KEY = {
-  dashboard:"dashboard", ingredients:"ingredients", suppliers:"suppliers",
-  menu:"menu", indent:"indent", approval:"approval", storeIssue:"storeIssue",
-  receiving:"receiving", procurement:"procurement", distribution:"distribution",
-  reports:"reports", users:"users"
-};
-
-// ---------------- auth.js: Login/logout/password ----------------
-// ==========================================================================
-// auth.js — Firebase Authentication wiring (login/logout/password reset)
-// ==========================================================================
-let currentUser = null;      // Firebase auth user object
-let currentUserDoc = null;   // Firestore users/{uid} profile (role, permissions, name)
-
-function showToast(msg, type=""){
-  const el = document.getElementById("toast");
-  el.textContent = msg;
-  el.className = "toast " + type;
-  setTimeout(()=> el.className = "toast hidden", 3500);
-}
-window.showToast = showToast;
-
-// ---- Login form ----
-document.addEventListener("submit", async (e)=>{
-  if (e.target.id !== "loginForm") return;
-  e.preventDefault();
-  const email = document.getElementById("loginEmail").value.trim();
-  const pw = document.getElementById("loginPassword").value;
-  const errEl = document.getElementById("loginError");
-  errEl.textContent = "";
-  try{
-    await signInWithEmailAndPassword(auth, email, pw);
-    // onAuthStateChanged below will take over UI transition
-  }catch(err){
-    console.error(err);
-    errEl.textContent = t("invalidLogin");
-  }
-});
-
-onAuthStateChanged(auth, async (user)=>{
-  currentUser = user;
-  if (user){
-    const snap = await getDoc(doc(db, "users", user.uid));
-    if (snap.exists()){
-      currentUserDoc = { uid:user.uid, email:user.email, ...snap.data() };
-    } else {
-      // User exists in Firebase Auth but has no profile doc yet.
-      // This happens right after Admin creates them in Firebase Console manually
-      // before adding their Firestore profile — block access and explain.
-      currentUserDoc = { uid:user.uid, email:user.email, role:"none", permissions:{} };
-      showToast("यूज़र प्रोफाइल नहीं मिली। Admin से संपर्क करें। / User profile not found. Contact Admin.", "error");
-    }
-    window.currentUserDoc = currentUserDoc;
-    document.getElementById("loginScreen").classList.add("hidden");
-    document.getElementById("appShell").classList.remove("hidden");
-    document.getElementById("userInfo").textContent =
-      `${currentUserDoc.name || user.email} (${currentUserDoc.role || "?"})`;
-    if (window.initAppUI) window.initAppUI();
-  } else {
-    currentUserDoc = null;
-    window.currentUserDoc = null;
-    document.getElementById("appShell").classList.add("hidden");
-    document.getElementById("loginScreen").classList.remove("hidden");
-  }
-});
-
-window.logout = async function(){
-  await signOut(auth);
-};
-
-window.showForgotPassword = function(){
-  document.getElementById("forgotModal").classList.remove("hidden");
-};
-window.closeModal = function(id){
-  document.getElementById(id).classList.add("hidden");
-};
-window.sendResetEmail = async function(){
-  const email = document.getElementById("resetEmail").value.trim();
-  const msgEl = document.getElementById("resetMsg");
-  try{
-    await sendPasswordResetEmail(auth, email);
-    msgEl.textContent = t("resetLinkSent");
-  }catch(err){
-    msgEl.textContent = err.message;
-  }
-};
-
-window.showChangePassword = function(){
-  document.getElementById("changePwModal").classList.remove("hidden");
-};
-window.changeMyPassword = async function(){
-  const pw = document.getElementById("newPassword").value;
-  const msgEl = document.getElementById("changePwMsg");
-  if (pw.length < 6){
-    msgEl.textContent = "Password kam se kam 6 characters ka hona chahiye.";
-    return;
-  }
-  try{
-    await updatePassword(auth.currentUser, pw);
-    msgEl.textContent = t("passwordChanged");
-    setTimeout(()=> window.closeModal("changePwModal"), 1200);
-  }catch(err){
-    msgEl.textContent = "Please logout/login again then retry (security requirement). " + err.message;
-  }
-};
-
-// ---------------- modules.js: All screens ----------------
-// ==========================================================================
-// modules.js — All screen/module logic in one file for simplicity.
-// Har function ek module ka HTML #mainContent me render karta hai aur
-// uske actions (save/approve/issue/etc.) ko window par attach karta hai
-// taaki HTML ke inline onclick="" unhe call kar sake.
-// ==========================================================================
-const main = () => document.getElementById("mainContent");
-const esc = (s) => (s===undefined||s===null) ? "" : String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const money = (n) => "₹" + (Number(n||0)).toLocaleString("en-IN", {maximumFractionDigits:2});
-const ingName = (ing) => currentLang === "hi" ? (ing.name_hi || ing.name_en) : (ing.name_en || ing.name_hi);
-
-function kpiCard(value, labelKey){
-  return `<div class="kpi-card"><div class="kpi-value">${esc(value)}</div><div class="kpi-label">${t(labelKey)}</div></div>`;
-}
-
-function csvExport(filename, rows){
-  const csv = rows.map(r => r.map(c => `"${String(c===undefined?"":c).replace(/"/g,'""')}"`).join(",")).join("\n");
-  const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8;"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-}
-window.csvExport = csvExport;
-
-// ==========================================================================
-// DASHBOARD
-// ==========================================================================
-async function renderDashboard(){
-  main().innerHTML = `<p>Loading...</p>`;
-  const today = todayStr();
-  const [menus, distribution, rateMap] = await Promise.all([
-    listWhere("menus","date","==",today),
-    listWhere("distribution","date","==",today),
-    getReceivingRateMap()
-  ]);
-  const thalisToPrepare = menus.reduce((s,m)=> s + (Number(m.numThalis)||0), 0);
-  const personsToServe = menus.reduce((s,m)=> s + (Number(m.numPersons)||0), 0);
-  const distToday = distribution[0] || {distributedThalis:0, preparedThalis:0};
-
-  // Per-thali / per-person expenditure: computed from Menu items using the
-  // MOST RECENT Receiving/Purchase tab rate for each ingredient (not the
-  // old Ingredient Master rate field).
-  let expenditureToday = 0;
-  menus.forEach(m => { expenditureToday += computeMenuCost(m, rateMap).cost; });
-  const perThali = thalisToPrepare ? (expenditureToday / thalisToPrepare) : 0;
-  const perPerson = personsToServe ? (expenditureToday / personsToServe) : 0;
-
-  main().innerHTML = `
-    <div class="section-title">${t("dashboard")} — ${today}</div>
-    <div class="kpi-grid">
-      ${kpiCard(thalisToPrepare, "thalisToPrepare")}
-      ${kpiCard(personsToServe, "personsToServe")}
-      ${kpiCard(distToday.distributedThalis||0, "thalisDistributed")}
-      ${kpiCard(money(expenditureToday.toFixed(2)), "todaysExpenditure")}
-      ${kpiCard(money(perThali.toFixed(2)), "perThaliExpenditure")}
-      ${kpiCard(money(perPerson.toFixed(2)), "perPersonExpenditure")}
-    </div>
-    <div class="card">
-      <div class="section-title">${t("todaysMenu")}</div>
-      ${menus.length ? `<table><tr><th>${t("menuName")}</th><th>${t("numThalis")}</th><th>${t("numPersons")}</th></tr>
-        ${menus.map(m=>`<tr><td>${esc(currentLang==="hi"?m.name_hi:m.name_en)}</td><td>${esc(m.numThalis)}</td><td>${esc(m.numPersons||"-")}</td></tr>`).join("")}
-      </table>` : `<p>${t("noData")}</p>`}
-    </div>`;
-}
-
-// ==========================================================================
-// INGREDIENTS MASTER
-// ==========================================================================
-async function renderIngredients(){
-  const items = await listAll("ingredients");
-  const canAdd = can(currentUserDoc, "ingredients", "add");
-  main().innerHTML = `
-    <div class="section-title">${t("ingredients")}</div>
-    ${canAdd ? `
-    <div class="card">
-      <div class="form-row">
-        <div><label>${t("name")} (Hindi)</label><input id="ingNameHi"></div>
-        <div><label>${t("name")} (English)</label><input id="ingNameEn"></div>
-        <div><label>${t("unit")} (kg/ltr/pc)</label><input id="ingUnit" placeholder="kg"></div>
-        <div><label>${t("type")}</label>
-          <select id="ingType"><option value="veg">${t("veg")}</option><option value="nonveg">${t("nonveg")}</option></select>
-        </div>
-        <div><label>${t("category")}</label><input id="ingCategory" placeholder="Vegetable / Grain / Spice / Dairy / Meat"></div>
-      </div>
-      <button class="btn-primary" style="width:auto" onclick="saveIngredient()">${t("addNew")}</button>
-    </div>
-    <div class="card">
-      <div class="section-title">${t("bulkUpload")}</div>
-      <p style="font-size:12px;color:#777">
-        ${currentLang==='hi'
-          ? 'फॉर्मैट: कॉलम — क्र., हिंदी नाम, English Name। श्रेणी हेडर वाली पंक्ति (जैसे "A. अनाज... | Grains...") अपने-आप श्रेणी के रूप में पहचानी जाएगी। "2." से शुरू होने वाली श्रेणियों के बाद के सभी आइटम अपने-आप मांसाहारी (Non-Veg) माने जाएंगे, बाकी सभी शाकाहारी। दर (Rate) की कोई आवश्यकता नहीं।'
-          : 'Format: columns — Sr No, Hindi Name, English Name. A category-header row (e.g. "A. Grains... | Grains...") is auto-detected as a category. Everything after a category starting with "2." is auto-marked Non-Veg; everything before that is Veg. No Rate column needed.'}
-      </p>
-      <div class="form-row">
-        <div><label>${t("chooseFile")} (.xlsx / .xls / .csv)</label><input type="file" id="bulkIngFile" accept=".xlsx,.xls,.csv"></div>
-        <div><label>${t("defaultUnit")}</label>
-          <select id="bulkIngDefaultUnit">
-            <option value="kg">kg</option><option value="ltr">ltr</option><option value="pc">pc</option><option value="gm">gm</option>
-          </select>
-        </div>
-        <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="bulkUploadIngredients()">${t("uploadAndImport")}</button></div>
-      </div>
-      <p id="bulkUploadMsg" style="font-size:13px;"></p>
-    </div>` : ""}
-    <div class="card">
-      <div class="form-row">
-        <div><label>${t("category")}</label>
-          <select id="ingFilterCategory" onchange="renderIngredientsTable()"><option value="">${t("allCategories")}</option>
-            ${[...new Set(items.map(i=>i.category).filter(Boolean))].sort().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("")}
-          </select>
-        </div>
-      </div>
-      <table id="ingredientsTable"></table>
-    </div>`;
-  window.__allIngredientsCache = items;
-  renderIngredientsTable();
-}
-function renderIngredientsTable(){
-  const tbl = document.getElementById("ingredientsTable");
-  if (!tbl) return;
-  const canAdd = can(currentUserDoc, "ingredients", "add");
-  const filterCat = document.getElementById("ingFilterCategory")?.value || "";
-  const items = (window.__allIngredientsCache||[]).filter(i => !filterCat || i.category===filterCat);
-  tbl.innerHTML = `<tr><th>${t("name")}</th><th>${t("unit")}</th><th>${t("type")}</th><th>${t("category")}</th>${canAdd?`<th>${t("action")}</th>`:""}</tr>` +
-    items.map(i=>`<tr>
-      <td>${esc(i.name_hi)} / ${esc(i.name_en)}</td><td>${esc(i.unit)}</td>
-      <td><span class="tag ${i.type==='veg'?'tag-veg':'tag-nonveg'}">${t(i.type)}</span></td>
-      <td>${esc(i.category||"-")}</td>
-      ${canAdd?`<td><button class="small-btn" onclick="deleteIngredient('${i.id}')">${t("delete")}</button></td>`:""}
-    </tr>`).join("");
-}
-window.saveIngredient = async function(){
-  const data = {
-    name_hi: document.getElementById("ingNameHi").value.trim(),
-    name_en: document.getElementById("ingNameEn").value.trim(),
-    unit: document.getElementById("ingUnit").value.trim() || "kg",
-    type: document.getElementById("ingType").value,
-    category: document.getElementById("ingCategory").value.trim()
-  };
-  if (!data.name_hi && !data.name_en){ showToast("Naam bharen","error"); return; }
-  const id = await addOne("ingredients", data);
-  await setOne("stock", id, { qtyInHand:0, qtyInPipeline:0 });
-  showToast(t("saved"),"success");
-  renderIngredients();
-};
-window.deleteIngredient = async function(id){
-  if (!confirm("Delete?")) return;
-  await removeOne("ingredients", id);
-  renderIngredients();
-};
-
-// ---- Bulk upload parser: matches the FMB items list format
-// (Sr No | Hindi Name | English Name), with category-header rows and an
-// automatic Veg -> Non-Veg switch once a "2. ..." section header is seen.
-window.bulkUploadIngredients = async function(){
-  const fileInput = document.getElementById("bulkIngFile");
-  const msgEl = document.getElementById("bulkUploadMsg");
-  const defaultUnit = document.getElementById("bulkIngDefaultUnit").value || "kg";
-  const file = fileInput.files[0];
-  if (!file){ msgEl.textContent = currentLang==='hi' ? "पहले फाइल चुनें" : "Choose a file first"; return; }
-  msgEl.textContent = t("uploading");
-  try{
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type: "array" });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header:1, defval:"" });
-
-    const existing = await listAll("ingredients");
-    const existingNames = new Set(existing.map(i => (i.name_hi||"").trim().toLowerCase()).filter(Boolean));
-
-    let currentCategory = "";
-    let isNonVeg = false;
-    let imported = 0, skipped = 0;
-
-    for (let r = 0; r < rows.length; r++){
-      const row = rows[r];
-      const c0 = String(row[0]||"").trim();
-      const c1 = String(row[1]||"").trim();
-      const c2 = String(row[2]||"").trim();
-      if (!c0 && !c1 && !c2) continue; // blank line
-      if (/^क्र\.?$/i.test(c0) || /^sr/i.test(c0)) continue; // header row itself
-
-      const looksLikeCategoryHeader = (c0 && !c1 && !c2) || (isNaN(Number(c0)) && c0.length>3 && !c1 && !c2);
-      if (looksLikeCategoryHeader){
-        currentCategory = c0.replace(/^[A-Za-z0-9]+\.\s*/, "").trim(); // strip "A. " / "2. " prefix
-        if (/^2\./.test(c0)) isNonVeg = true; // "2. मांसाहारी..." section => everything after is Non-Veg
-        continue;
-      }
-      // item row: needs at least a Hindi or English name
-      const nameHi = c1, nameEn = c2;
-      if (!nameHi && !nameEn) continue;
-      const key = nameHi.trim().toLowerCase();
-      if (key && existingNames.has(key)){ skipped++; continue; }
-      const data = {
-        name_hi: nameHi, name_en: nameEn, unit: defaultUnit,
-        type: isNonVeg ? "nonveg" : "veg", category: currentCategory
-      };
-      const id = await addOne("ingredients", data);
-      await setOne("stock", id, { qtyInHand:0, qtyInPipeline:0 });
-      if (key) existingNames.add(key);
-      imported++;
-    }
-    msgEl.textContent = `${imported} ${t("itemsImported")}, ${skipped} ${t("itemsSkipped")}`;
-    showToast(t("saved"),"success");
-    renderIngredients();
-  }catch(err){
-    console.error(err);
-    msgEl.textContent = err.message;
-  }
-};
-
-// ==========================================================================
-// SUPPLIERS MASTER
-// ==========================================================================
-async function renderSuppliers(){
-  const items = await listAll("suppliers");
-  const canAdd = can(currentUserDoc, "suppliers", "add");
-  main().innerHTML = `
-    <div class="section-title">${t("suppliers")}</div>
-    ${canAdd ? `<div class="card">
-      <div class="form-row">
-        <div><label>${t("name")}</label><input id="supName"></div>
-        <div><label>Contact</label><input id="supContact"></div>
-        <div><label>Address</label><input id="supAddress"></div>
-      </div>
-      <button class="btn-primary" style="width:auto" onclick="saveSupplier()">${t("addNew")}</button>
-    </div>`:""}
-    <div class="card"><table><tr><th>${t("name")}</th><th>Contact</th><th>Address</th></tr>
-      ${items.map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(s.contact)}</td><td>${esc(s.address)}</td></tr>`).join("")}
-    </table></div>`;
-}
-window.saveSupplier = async function(){
-  const data = {
-    name: document.getElementById("supName").value.trim(),
-    contact: document.getElementById("supContact").value.trim(),
-    address: document.getElementById("supAddress").value.trim()
-  };
-  if (!data.name) return;
-  await addOne("suppliers", data);
-  showToast(t("saved"),"success");
-  renderSuppliers();
-};
-
-// ==========================================================================
-// MENU — auto calculate requirement + fetch stock
-// ==========================================================================
-let menuDraftItems = [];
-async function renderMenu(){
-  const [menus, ingredients, allIndents] = await Promise.all([listAll("menus"), listAll("ingredients"), listAll("indents")]);
-  const canAdd = can(currentUserDoc, "menu", "add");
-  menus.sort((a,b)=> (b.date||"").localeCompare(a.date||""));
-  const categories = [...new Set(ingredients.map(i=>i.category).filter(Boolean))].sort();
-  const menuIndentsByMenuId = {};
-  allIndents.forEach(ind => { if (ind.menuId && !menuIndentsByMenuId[ind.menuId]) menuIndentsByMenuId[ind.menuId] = ind; });
-
-  main().innerHTML = `
-    <div class="section-title">${t("menu")}</div>
-    ${canAdd ? `<div class="card">
-      <div class="form-row">
-        <div><label>${t("date")}</label><input id="menuDate" type="date" value="${todayStr()}"></div>
-        <div><label>${t("menuName")} (Hindi)</label><input id="menuNameHi"></div>
-        <div><label>${t("menuName")} (English)</label><input id="menuNameEn"></div>
-        <div><label>${t("numThalis")}</label><input id="menuThalis" type="number" min="1" value="100" oninput="recalcMenuQty()"></div>
-        <div><label>${t("numPersons")}</label><input id="menuPersons" type="number" min="1" value="100"></div>
-      </div>
-      <label>${t("selectIngredients")}</label>
-      <div class="form-row">
-        <div><label>${t("category")}</label>
-          <select id="menuCatFilter" onchange="filterMenuIngOptions()"><option value="">${t("allCategories")}</option>
-            ${categories.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("")}
-          </select>
-        </div>
-        <div><label>${t("searchIngredient")}</label><input id="menuIngSearch" oninput="filterMenuIngOptions()" placeholder="${t("searchIngredient")}"></div>
-      </div>
-      <div class="form-row">
-        <div style="flex:2">
-          <select id="menuIngSelect"></select>
-        </div>
-        <div><label>${t("qtyPerThali")}</label><input id="menuIngQtyPerThali" type="number" step="0.001" value="0.1"></div>
-        <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addMenuIngredient()">${t("addNew")}</button></div>
-      </div>
-      <p class="hint" style="margin:4px 0">${t("customIngredient")}</p>
-      <div class="form-row">
-        <div style="flex:2"><input id="menuCustomIngName" placeholder="${t("customIngName")}"></div>
-        <div><label>${t("qtyPerThali")}</label><input id="menuCustomQtyPerThali" type="number" step="0.001" value="0.1"></div>
-        <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addMenuCustomIngredient()">${t("addCustomItem")}</button></div>
-      </div>
-      <table id="menuItemsTable"><tr>
-        <th>${t("ingredients")}</th><th>${t("qtyPerThali")}</th><th>${t("requiredQty")}</th>
-        <th>${t("availableStock")}</th><th>${t("shortfall")}</th><th></th>
-      </tr></table>
-      <button class="btn-primary" style="width:auto;margin-top:14px" onclick="saveMenu()">${t("save")}</button>
-    </div>` : ""}
-
-    <div class="card">
-      <table><tr><th>${t("date")}</th><th>${t("menuName")}</th><th>${t("numThalis")}</th><th>${t("numPersons")}</th><th>${t("status")}</th></tr>
-        ${menus.map(m=>{
-          const linkedIndent = menuIndentsByMenuId[m.id];
-          const statusTag = linkedIndent ? `<span class="tag tag-${linkedIndent.status}">${t(linkedIndent.status)}</span>` : "-";
-          return `<tr>
-          <td>${esc(m.date)}</td><td>${esc(currentLang==="hi"?m.name_hi:m.name_en)}</td><td>${esc(m.numThalis)}</td><td>${esc(m.numPersons||"-")}</td>
-          <td>${statusTag}</td>
-        </tr>`;}).join("")}
-      </table>
-    </div>`;
-
-  window.__ingredientsCache = ingredients;
-  window.__stockCache = await getStockMap();
-  menuDraftItems = [];
-  if (canAdd) filterMenuIngOptions();
-  renderMenuItemsTable();
-}
-
-// Combines category filter + text search to repopulate the ingredient <select>
-window.filterMenuIngOptions = function(){
-  const sel = document.getElementById("menuIngSelect");
-  if (!sel) return;
-  const cat = document.getElementById("menuCatFilter")?.value || "";
-  const q = (document.getElementById("menuIngSearch")?.value || "").trim().toLowerCase();
-  const list = (window.__ingredientsCache||[]).filter(i=>{
-    if (cat && i.category !== cat) return false;
-    if (q && !((i.name_hi||"").toLowerCase().includes(q) || (i.name_en||"").toLowerCase().includes(q))) return false;
-    return true;
-  });
-  sel.innerHTML = list.map(i=>`<option value="${i.id}">${ingName(i)} (${esc(i.unit)}) — ${t(i.type)}</option>`).join("");
-};
-
-function renderMenuItemsTable(){
-  const tbl = document.getElementById("menuItemsTable");
-  if (!tbl) return;
-  const thalis = Number(document.getElementById("menuThalis")?.value)||0;
-  tbl.innerHTML = `<tr>
-    <th>${t("ingredients")}</th><th>${t("qtyPerThali")}</th><th>${t("requiredQty")}</th>
-    <th>${t("availableStock")}</th><th>${t("shortfall")}</th><th></th></tr>` +
-    menuDraftItems.map((row,idx)=>{
-      if (!row.ingredientId){
-        // custom/open-field item — not linked to Ingredient Master, no stock tracking
-        const required = row.qtyPerThali * thalis;
-        row.requiredQty = required;
-        return `<tr>
-          <td>${esc(row.customName)} <span class="hint">(${t("customIngredient")})</span></td><td>${row.qtyPerThali}</td>
-          <td>${required.toFixed(3)}</td><td>${t("notAvailable")}</td><td>-</td>
-          <td><button class="remove-row-btn" onclick="removeMenuIngredient(${idx})">✕</button></td>
-        </tr>`;
-      }
-      const ing = window.__ingredientsCache.find(i=>i.id===row.ingredientId);
-      const required = row.qtyPerThali * thalis;
-      const avail = (window.__stockCache[row.ingredientId]?.qtyInHand) || 0;
-      const shortfall = Math.max(0, required - avail);
-      row.requiredQty = required; row.availableQty = avail; row.shortfallQty = shortfall;
-      return `<tr>
-        <td>${ing?ingName(ing):"?"}</td><td>${row.qtyPerThali}</td>
-        <td>${required.toFixed(3)}</td><td>${avail.toFixed(3)}</td>
-        <td class="${shortfall>0?'shortfall':'ok-stock'}">${shortfall.toFixed(3)}</td>
-        <td><button class="remove-row-btn" onclick="removeMenuIngredient(${idx})">✕</button></td>
-      </tr>`;
-    }).join("");
-}
-window.recalcMenuQty = renderMenuItemsTable;
-window.addMenuIngredient = function(){
-  const ingredientId = document.getElementById("menuIngSelect").value;
-  const qtyPerThali = Number(document.getElementById("menuIngQtyPerThali").value)||0;
-  if (!ingredientId || qtyPerThali<=0) return;
-  menuDraftItems.push({ ingredientId, qtyPerThali });
-  renderMenuItemsTable();
-};
-window.addMenuCustomIngredient = function(){
-  const customName = document.getElementById("menuCustomIngName").value.trim();
-  const qtyPerThali = Number(document.getElementById("menuCustomQtyPerThali").value)||0;
-  if (!customName || qtyPerThali<=0) return;
-  menuDraftItems.push({ customName, qtyPerThali }); // no ingredientId => custom/open-field item
-  document.getElementById("menuCustomIngName").value = "";
-  renderMenuItemsTable();
-};
-window.removeMenuIngredient = function(idx){
-  menuDraftItems.splice(idx,1);
-  renderMenuItemsTable();
-};
-window.saveMenu = async function(){
-  if (!menuDraftItems.length){ showToast("Kam se kam ek ingredient jodein","error"); return; }
-  const data = {
-    date: document.getElementById("menuDate").value || todayStr(),
-    name_hi: document.getElementById("menuNameHi").value.trim(),
-    name_en: document.getElementById("menuNameEn").value.trim(),
-    numThalis: Number(document.getElementById("menuThalis").value)||0,
-    numPersons: Number(document.getElementById("menuPersons").value)||0,
-    items: menuDraftItems.map(r=> r.ingredientId
-      ? { ingredientId:r.ingredientId, qtyPerThali:r.qtyPerThali }
-      : { customName:r.customName, qtyPerThali:r.qtyPerThali })
-  };
-  const menuId = await addOne("menus", data);
-
-  // Cook's menu automatically becomes a pending Indent for Admin to review/approve.
-  // Admin can increase/decrease each item's quantity on the Approval screen —
-  // Store Issue only becomes possible once Admin approves it.
-  const stock = await getStockMap();
-  const indentItems = data.items.map(it=> buildIndentItemFromMenuItem(it, data.numThalis, stock));
-  await addOne("indents", {
-    date: data.date, menuId, createdBy: currentUserDoc.uid,
-    createdByName: currentUserDoc.name || currentUserDoc.email,
-    items: indentItems, status:"pending"
-  });
-
-  showToast(t("saved"),"success");
-  renderMenu();
-};
-function buildIndentItemFromMenuItem(it, numThalis, stock){
-  const required = it.qtyPerThali * numThalis;
-  if (!it.ingredientId){
-    // custom item — not in Ingredient Master, no stock to check against
-    return { customName: it.customName, requiredQty: required, availableQty:0, shortfallQty: required, source: "custom" };
-  }
-  const available = stock[it.ingredientId]?.qtyInHand || 0;
-  return {
-    ingredientId: it.ingredientId, requiredQty: required,
-    availableQty: available, shortfallQty: Math.max(0, required-available),
-    source: "menu"
-  };
-}
-
-// ==========================================================================
-// INDENT
-// ==========================================================================
-let indentDraftItems = [];
-let indentDraftMenuId = null;
-async function renderIndent(){
-  const [indents, ingredients] = await Promise.all([listAll("indents"), listAll("ingredients")]);
-  window.__ingredientsCache = ingredients;
-  window.__stockCache = await getStockMap();
-  indents.sort((a,b)=> (b.date||"").localeCompare(a.date||""));
-  const canAdd = can(currentUserDoc, "indent", "add");
-
-  main().innerHTML = `
-    <div class="section-title">${t("indent")}</div>
-    ${canAdd ? `<div class="card">
-      <p style="font-size:13px;color:#777">${currentLang==='hi'
-        ? 'नोट: Menu Tab में सामग्री जोड़कर मेन्यू सेव करते ही उसका Indent अपने-आप बनकर Approval के लिए चला जाता है। यहां सिर्फ अतिरिक्त/मैन्युअल आइटम जोड़ें:'
-        : 'Note: Saving a Menu automatically creates its Indent and sends it for Approval. Use this only to add extra/manual items:'}</p>
-      <div class="form-row">
-        <div style="flex:2"><select id="indIngSelect">
-          ${ingredients.map(i=>`<option value="${i.id}">${ingName(i)} (${esc(i.unit)})</option>`).join("")}
-        </select></div>
-        <div><label>${t("requiredQty")}</label><input id="indQty" type="number" step="0.001" value="1"></div>
-        <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addIndentExtraItem()">${t("addExtraItem")}</button></div>
-      </div>
-      <table id="indentItemsTable"></table>
-      <button class="btn-primary" style="width:auto;margin-top:10px" onclick="submitIndent()">${t("createIndent")}</button>
-    </div>`:""}
-
-    <div class="card">
-      <table><tr><th>${t("date")}</th><th>ID</th><th>${t("status")}</th><th>Items</th></tr>
-      ${indents.map(i=>`<tr>
-        <td>${esc(i.date)}</td><td>${i.id.slice(0,6)}</td>
-        <td><span class="tag tag-${i.status}">${t(i.status)}</span></td>
-        <td>${(i.items||[]).length}</td>
-      </tr>`).join("")}
-      </table>
-    </div>`;
-  renderIndentItemsTable();
-}
-function renderIndentItemsTable(){
-  const tbl = document.getElementById("indentItemsTable");
-  if (!tbl) return;
-  tbl.innerHTML = `<tr><th>${t("ingredients")}</th><th>${t("requiredQty")}</th><th>${t("availableStock")}</th>
-    <th>${t("shortfall")}</th><th>${t("from")}</th><th></th></tr>` +
-    indentDraftItems.map((row,idx)=>{
-      const ing = row.ingredientId ? window.__ingredientsCache.find(i=>i.id===row.ingredientId) : null;
-      return `<tr>
-        <td>${ing?ingName(ing):esc(row.customName||"?")}</td><td>${row.requiredQty}</td>
-        <td>${(row.availableQty||0).toFixed(3)}</td>
-        <td class="${row.shortfallQty>0?'shortfall':'ok-stock'}">${(row.shortfallQty||0).toFixed(3)}</td>
-        <td>${row.source==="menu"?t("fromStock"):t("notInStock")}</td>
-        <td><button class="remove-row-btn" onclick="removeIndentItem(${idx})">✕</button></td>
-      </tr>`;
-    }).join("");
-}
-window.addIndentExtraItem = function(){
-  const ingredientId = document.getElementById("indIngSelect").value;
-  const requiredQty = Number(document.getElementById("indQty").value)||0;
-  if (!ingredientId || requiredQty<=0) return;
-  const available = window.__stockCache[ingredientId]?.qtyInHand || 0;
-  indentDraftItems.push({ ingredientId, requiredQty, availableQty:available,
-    shortfallQty: Math.max(0, requiredQty-available), source:"manual" });
-  renderIndentItemsTable();
-};
-window.removeIndentItem = function(idx){
-  indentDraftItems.splice(idx,1);
-  renderIndentItemsTable();
-};
-window.submitIndent = async function(){
-  if (!indentDraftItems.length){ showToast("Items jodein","error"); return; }
-  await addOne("indents", {
-    date: todayStr(), menuId: indentDraftMenuId, createdBy: currentUserDoc.uid,
-    createdByName: currentUserDoc.name || currentUserDoc.email,
-    items: indentDraftItems, status:"pending"
-  });
-  indentDraftItems = []; indentDraftMenuId = null;
-  showToast(t("saved"),"success");
-  renderIndent();
-};
-
-// ==========================================================================
-// APPROVAL
-// ==========================================================================
-async function renderApproval(){
-  const [indents, ingredients] = await Promise.all([listWhere("indents","status","==","pending"), listAll("ingredients")]);
-  const canApprove = can(currentUserDoc, "approval", "approve");
-  main().innerHTML = `
-    <div class="section-title">${t("approval")}</div>
-    ${indents.length===0? `<p>${t("noData")}</p>` : indents.map(ind=>`
-      <div class="card">
-        <b>${t("date")}:</b> ${esc(ind.date)} &nbsp; <b>${currentLang==='hi'?'द्वारा':'By'}:</b> ${esc(ind.createdByName||"")}
-        <p class="hint">${currentLang==='hi' ? 'ज़रूरत अनुसार मात्रा घटाएं/बढ़ाएं, फिर स्वीकृत करें।' : 'Adjust quantity up/down as needed, then approve.'}</p>
-        <table><tr><th>${t("ingredients")}</th><th>${t("requiredQty")}</th><th>${t("availableStock")}</th><th>${t("shortfall")}</th></tr>
-        ${(ind.items||[]).map((it,idx)=>{
-          const ing = it.ingredientId ? ingredients.find(i=>i.id===it.ingredientId) : null;
-          const avail = it.availableQty||0;
-          return `<tr><td>${ing?ingName(ing):esc(it.customName||"?")}</td>
-            <td>${canApprove
-              ? `<input type="number" step="0.001" style="width:100px;margin:0" id="apprQty_${ind.id}_${idx}" value="${it.requiredQty}" data-avail="${avail}" oninput="recalcApprovalShortfall('${ind.id}',${idx})">`
-              : it.requiredQty}</td>
-            <td>${avail.toFixed(3)}</td>
-            <td id="apprShortfall_${ind.id}_${idx}" class="${it.shortfallQty>0?'shortfall':'ok-stock'}">${(it.shortfallQty||0).toFixed(3)}</td></tr>`;
-        }).join("")}
-        </table>
-        ${canApprove?`<button class="btn-primary" style="width:auto" onclick="decideIndent('${ind.id}','approved')">${t("approve")}</button>
-        <button class="btn-secondary" onclick="decideIndent('${ind.id}','rejected')">${t("reject")}</button>`:""}
-      </div>`).join("")}`;
-  window.__approvalIndentsCache = indents;
-}
-window.recalcApprovalShortfall = function(indId, idx){
-  const input = document.getElementById(`apprQty_${indId}_${idx}`);
-  const cell = document.getElementById(`apprShortfall_${indId}_${idx}`);
-  const qty = Number(input.value)||0;
-  const avail = Number(input.dataset.avail)||0;
-  const shortfall = Math.max(0, qty-avail);
-  cell.textContent = shortfall.toFixed(3);
-  cell.className = shortfall>0 ? "shortfall" : "ok-stock";
-};
-window.decideIndent = async function(id, status){
-  const ind = (window.__approvalIndentsCache||[]).find(i=>i.id===id);
-  if (ind){
-    // Pick up any quantity edits the Admin made before approving/rejecting.
-    ind.items.forEach((it,idx)=>{
-      const input = document.getElementById(`apprQty_${id}_${idx}`);
-      if (input){
-        const newQty = Number(input.value)||0;
-        it.requiredQty = newQty;
-        it.shortfallQty = Math.max(0, newQty - (it.availableQty||0));
-      }
-    });
-    await updateOne("indents", id, { items: ind.items, status, approvedBy: currentUserDoc.uid, approvedAt: todayStr() });
-  } else {
-    await updateOne("indents", id, { status, approvedBy: currentUserDoc.uid, approvedAt: todayStr() });
-  }
-  showToast(t("saved"),"success");
-  renderApproval();
-};
-
-// ==========================================================================
-// STORE ISSUE
-// ==========================================================================
-async function renderStoreIssue(){
-  const [indents, ingredients] = await Promise.all([listWhere("indents","status","==","approved"), listAll("ingredients")]);
-  const canIssue = can(currentUserDoc, "storeIssue", "issue");
-  const pending = indents.filter(i => !i.issueStatus || i.issueStatus==="pending" || i.issueStatus==="partial");
-  main().innerHTML = `
-    <div class="section-title">${t("storeIssue")}</div>
-    ${pending.length===0? `<p>${t("noData")}</p>` : pending.map(ind=>`
-      <div class="card" id="issueCard_${ind.id}">
-        <b>${t("date")}:</b> ${esc(ind.date)}
-        <table><tr><th>${t("ingredients")}</th><th>${t("requiredQty")}</th><th>${t("availableStock")}</th><th>${t("issueQty")}</th></tr>
-        ${(ind.items||[]).map((it,idx)=>{
-          const ing = it.ingredientId ? ingredients.find(i=>i.id===it.ingredientId) : null;
-          const already = it.issuedQty || 0;
-          return `<tr><td>${ing?ingName(ing):esc(it.customName||"?")}</td><td>${it.requiredQty}</td><td>${(it.availableQty||0).toFixed(3)}</td>
-            <td><input type="number" step="0.001" id="issueQty_${ind.id}_${idx}" value="${already || Math.min(it.requiredQty, it.availableQty||0)}" ${canIssue?"":"disabled"}></td></tr>`;
-        }).join("")}
-        </table>
-        ${canIssue?`<button class="btn-primary" style="width:auto" onclick="submitStoreIssue('${ind.id}')">${t("submitIssue")}</button>`:""}
-      </div>`).join("")}`;
-}
-window.submitStoreIssue = async function(indentId){
-  const ind = await getOne("indents", indentId);
-  let allFull = true;
-  for (let idx=0; idx<ind.items.length; idx++){
-    const el = document.getElementById(`issueQty_${indentId}_${idx}`);
-    const issuedQty = Number(el.value)||0;
-    ind.items[idx].issuedQty = issuedQty;
-    if (issuedQty < ind.items[idx].requiredQty) allFull = false;
-    if (!ind.items[idx].ingredientId) continue; // custom item — no stock/ledger to adjust
-    await adjustStock(ind.items[idx].ingredientId, -issuedQty, 0);
-    await addLedgerEntry({ ingredientId: ind.items[idx].ingredientId, type:"out", qty:issuedQty,
-      refType:"indent", refId: indentId });
-  }
-  await updateOne("indents", indentId, { items: ind.items, issueStatus: allFull? "full":"partial" });
-  showToast(t("saved"),"success");
-  renderStoreIssue();
-};
-
-// ==========================================================================
-// PROCUREMENT — Purchase Orders
-// ==========================================================================
-let poDraftItems = [];
-async function renderProcurement(){
-  const [pos, suppliers, ingredients] = await Promise.all([listAll("purchaseOrders"), listAll("suppliers"), listAll("ingredients")]);
-  window.__ingredientsCache = ingredients;
-  const canAdd = can(currentUserDoc, "procurement", "add");
-  pos.sort((a,b)=> (b.date||"").localeCompare(a.date||""));
-  main().innerHTML = `
-    <div class="section-title">${t("procurement")} — ${t("purchaseOrder")}</div>
-    ${canAdd?`<div class="card">
-      <div class="form-row">
-        <div><label>${t("vendorName")}</label><input id="poSupplierName" list="vendorSuggestions" placeholder="${t("vendorName")}"></div>
-        <div><label>${t("date")}</label><input id="poDate" type="date" value="${todayStr()}"></div>
-      </div>
-      <datalist id="vendorSuggestions">${suppliers.map(s=>`<option value="${esc(s.name)}">`).join("")}</datalist>
-      <div class="form-row">
-        <div style="flex:2"><select id="poIngSelect">${ingredients.map(i=>`<option value="${i.id}">${ingName(i)}</option>`).join("")}</select></div>
-        <div><label>${t("requiredQty")}</label><input id="poQty" type="number" step="0.001" value="1"></div>
-        <div><label>${t("rate")}</label><input id="poRate" type="number" step="0.01" value="0"></div>
-        <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addPOItem()">${t("addNew")}</button></div>
-      </div>
-      <table id="poItemsTable"></table>
-      <button class="btn-primary" style="width:auto;margin-top:10px" onclick="savePO()">${t("createPO")}</button>
-    </div>`:""}
-    <div class="card"><table><tr><th>${t("date")}</th><th>${t("supplier")}</th><th>${t("amount")}</th><th>${t("status")}</th><th>${t("action")}</th></tr>
-    ${pos.map(p=>{
-      const total = (p.items||[]).reduce((s,it)=>s+it.qty*it.rate,0);
-      return `<tr><td>${esc(p.date)}</td><td>${esc(p.supplierName||"-")}</td><td>${money(total)}</td>
-        <td><span class="tag tag-${p.status}">${t(p.status)||p.status}</span></td>
-        <td>
-          <select onchange="updatePOStatus('${p.id}', this.value)">
-            ${["pending","ordered","partiallyReceived","received"].map(s=>`<option value="${s}" ${p.status===s?"selected":""}>${t(s)}</option>`).join("")}
-          </select>
-        </td></tr>`;
-    }).join("")}
-    </table></div>`;
-  poDraftItems = [];
-  renderPOItemsTable();
-}
-function renderPOItemsTable(){
-  const tbl = document.getElementById("poItemsTable");
-  if (!tbl) return;
-  tbl.innerHTML = `<tr><th>${t("ingredients")}</th><th>${t("requiredQty")}</th><th>${t("rate")}</th><th>${t("amount")}</th><th></th></tr>` +
-    poDraftItems.map((row,idx)=>{
-      const ing = window.__ingredientsCache.find(i=>i.id===row.ingredientId);
-      return `<tr><td>${ing?ingName(ing):"?"}</td><td>${row.qty}</td><td>${money(row.rate)}</td>
-        <td>${money(row.qty*row.rate)}</td>
-        <td><button class="remove-row-btn" onclick="removePOItem(${idx})">✕</button></td></tr>`;
-    }).join("");
-}
-window.addPOItem = function(){
-  const ingredientId = document.getElementById("poIngSelect").value;
-  const qty = Number(document.getElementById("poQty").value)||0;
-  const rate = Number(document.getElementById("poRate").value)||0;
-  if (!ingredientId||qty<=0) return;
-  poDraftItems.push({ ingredientId, qty, rate });
-  renderPOItemsTable();
-};
-window.removePOItem = function(idx){ poDraftItems.splice(idx,1); renderPOItemsTable(); };
-window.savePO = async function(){
-  if (!poDraftItems.length) return;
-  await addOne("purchaseOrders", {
-    supplierName: document.getElementById("poSupplierName").value.trim(),
-    date: document.getElementById("poDate").value || todayStr(),
-    items: poDraftItems, status:"pending"
-  });
-  for (const it of poDraftItems){ await adjustStock(it.ingredientId, 0, it.qty); }
-  showToast(t("saved"),"success");
-  renderProcurement();
-};
-window.updatePOStatus = async function(id, status){
-  await updateOne("purchaseOrders", id, { status });
-  showToast(t("saved"),"success");
-};
-
-// ==========================================================================
-// RECEIVING
-// ==========================================================================
-async function renderReceiving(){
-  const [receivings, ingredients, pos, suppliers] = await Promise.all([
-    listAll("receivings"), listAll("ingredients"), listAll("purchaseOrders"), listAll("suppliers")
-  ]);
-  window.__ingredientsCache = ingredients;
-  const canAdd = can(currentUserDoc, "receiving", "add");
-  receivings.sort((a,b)=> (b.date||"").localeCompare(a.date||""));
-  main().innerHTML = `
-    <div class="section-title">${t("receiving")}</div>
-    ${canAdd?`<div class="card">
-      <div class="form-row">
-        <div><label>${t("purchaseOrder")} (optional)</label><select id="recvPO">
-          <option value="">--</option>
-          ${pos.map(p=>`<option value="${p.id}">${p.id.slice(0,6)} — ${esc(p.supplierName||"")}</option>`).join("")}
-        </select></div>
-        <div><label>${t("vendorName")}</label><input id="recvSupplierName" list="vendorSuggestions" placeholder="${t("vendorName")}"></div>
-        <div><label>${t("date")}</label><input id="recvDate" type="date" value="${todayStr()}"></div>
-      </div>
-      <datalist id="vendorSuggestions">${suppliers.map(s=>`<option value="${esc(s.name)}">`).join("")}</datalist>
-      <div class="form-row">
-        <div style="flex:2"><select id="recvIngSelect">${ingredients.map(i=>`<option value="${i.id}">${ingName(i)}</option>`).join("")}</select></div>
-        <div><label>${t("requiredQty")}</label><input id="recvQty" type="number" step="0.001" value="1"></div>
-        <div><label>${t("rate")}</label><input id="recvRate" type="number" step="0.01" value="0"></div>
-        <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addReceivingItem()">${t("addNew")}</button></div>
-      </div>
-      <table id="recvItemsTable"></table>
-      <button class="btn-primary" style="width:auto;margin-top:10px" onclick="saveReceiving()">${t("receiveEntry")}</button>
-    </div>`:""}
-    <div class="card"><table><tr><th>${t("date")}</th><th>${t("vendorName")}</th><th>${t("amount")}</th></tr>
-    ${receivings.map(r=>{
-      const total = (r.items||[]).reduce((s,it)=>s+it.qty*it.rate,0);
-      return `<tr><td>${esc(r.date)}</td><td>${esc(r.supplierName||"-")}</td><td>${money(total)}</td></tr>`;
-    }).join("")}
-    </table></div>`;
-  window.__recvDraftItems = [];
-  renderRecvItemsTable();
-}
-function renderRecvItemsTable(){
-  const tbl = document.getElementById("recvItemsTable");
-  if (!tbl) return;
-  tbl.innerHTML = `<tr><th>${t("ingredients")}</th><th>${t("requiredQty")}</th><th>${t("rate")}</th><th>${t("amount")}</th><th></th></tr>` +
-    window.__recvDraftItems.map((row,idx)=>{
-      const ing = window.__ingredientsCache.find(i=>i.id===row.ingredientId);
-      return `<tr><td>${ing?ingName(ing):"?"}</td><td>${row.qty}</td><td>${money(row.rate)}</td>
-        <td>${money(row.qty*row.rate)}</td>
-        <td><button class="remove-row-btn" onclick="removeRecvItem(${idx})">✕</button></td></tr>`;
-    }).join("");
-}
-window.addReceivingItem = function(){
-  const ingredientId = document.getElementById("recvIngSelect").value;
-  const qty = Number(document.getElementById("recvQty").value)||0;
-  const rate = Number(document.getElementById("recvRate").value)||0;
-  if (!ingredientId||qty<=0) return;
-  window.__recvDraftItems.push({ ingredientId, qty, rate });
-  renderRecvItemsTable();
-};
-window.removeRecvItem = function(idx){ window.__recvDraftItems.splice(idx,1); renderRecvItemsTable(); };
-window.saveReceiving = async function(){
-  const items = window.__recvDraftItems;
-  if (!items.length) return;
-  const poId = document.getElementById("recvPO").value || null;
-  const supplierName = document.getElementById("recvSupplierName").value.trim();
-  const date = document.getElementById("recvDate").value || todayStr();
-  await addOne("receivings", { poId, supplierName, date, items });
-  for (const it of items){
-    await adjustStock(it.ingredientId, it.qty, poId ? -it.qty : 0); // moves qty from pipeline->hand if linked to PO
-    await addLedgerEntry({ ingredientId: it.ingredientId, type:"in", qty: it.qty,
-      amount: it.qty*it.rate, refType:"receiving", refId: poId||"manual", date });
-  }
-  showToast(t("saved"),"success");
-  renderReceiving();
-};
-
-// ==========================================================================
-// DISTRIBUTION
-// ==========================================================================
-async function renderDistribution(){
-  const rows = await listAll("distribution");
-  rows.sort((a,b)=> (b.date||"").localeCompare(a.date||""));
-  const canAdd = can(currentUserDoc, "distribution", "add");
-  main().innerHTML = `
-    <div class="section-title">${t("distribution")}</div>
-    ${canAdd?`<div class="card">
-      <div class="form-row">
-        <div><label>${t("date")}</label><input id="distDate" type="date" value="${todayStr()}"></div>
-        <div><label>${t("preparedThalis")}</label><input id="distPrepared" type="number" value="0"></div>
-        <div><label>${t("distributedThalis")}</label><input id="distDistributed" type="number" value="0"></div>
-        <div><label>${t("wastedThalis")}</label><input id="distWasted" type="number" value="0"></div>
-      </div>
-      <div class="form-row">
-        <div><label>${t("distributionCenter")}</label><input id="distCenterName"></div>
-        <div><label>Count</label><input id="distCenterCount" type="number" value="0"></div>
-        <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addDistCenter()">${t("addNew")}</button></div>
-      </div>
-      <table id="distCentersTable"></table>
-      <button class="btn-primary" style="width:auto;margin-top:10px" onclick="saveDistribution()">${t("save")}</button>
-    </div>`:""}
-    <div class="card"><table><tr><th>${t("date")}</th><th>${t("preparedThalis")}</th><th>${t("distributedThalis")}</th>
-      <th>${t("remainingThalis")}</th><th>${t("wastedThalis")}</th></tr>
-      ${rows.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.preparedThalis)}</td><td>${esc(r.distributedThalis)}</td>
-        <td>${(r.preparedThalis||0)-(r.distributedThalis||0)-(r.wastedThalis||0)}</td><td>${esc(r.wastedThalis)}</td></tr>`).join("")}
-    </table></div>`;
-  window.__distCenters = [];
-  renderDistCentersTable();
-}
-function renderDistCentersTable(){
-  const tbl = document.getElementById("distCentersTable");
-  if (!tbl) return;
-  tbl.innerHTML = `<tr><th>${t("distributionCenter")}</th><th>Count</th><th></th></tr>` +
-    window.__distCenters.map((c,idx)=>`<tr><td>${esc(c.name)}</td><td>${c.count}</td>
-      <td><button class="remove-row-btn" onclick="removeDistCenter(${idx})">✕</button></td></tr>`).join("");
-}
-window.addDistCenter = function(){
-  const name = document.getElementById("distCenterName").value.trim();
-  const count = Number(document.getElementById("distCenterCount").value)||0;
-  if (!name) return;
-  window.__distCenters.push({name, count});
-  renderDistCentersTable();
-};
-window.removeDistCenter = function(idx){ window.__distCenters.splice(idx,1); renderDistCentersTable(); };
-window.saveDistribution = async function(){
-  await addOne("distribution", {
-    date: document.getElementById("distDate").value || todayStr(),
-    preparedThalis: Number(document.getElementById("distPrepared").value)||0,
-    distributedThalis: Number(document.getElementById("distDistributed").value)||0,
-    wastedThalis: Number(document.getElementById("distWasted").value)||0,
-    centers: window.__distCenters
-  });
-  showToast(t("saved"),"success");
-  renderDistribution();
-};
-
-// ==========================================================================
-// REPORTS — menu-wise expenditure, per-thali cost, stock ledger, pending indents
-// ==========================================================================
-async function renderReports(){
-  const [menus, ingredients, ledger, indents, rateMap] = await Promise.all([
-    listAll("menus"), listAll("ingredients"), listAll("stockLedger"), listAll("indents"), getReceivingRateMap()
-  ]);
-  const menuCosts = menus.map(m=>{
-    const {cost, perThali, perPerson} = computeMenuCost(m, rateMap);
-    return { ...m, cost, perThali, perPerson };
-  });
-  const pendingIndents = indents.filter(i=>i.status==="pending");
-  main().innerHTML = `
-    <div class="section-title">${t("menuWiseExpenditure")}</div>
-    <div class="card">
-      <button class="small-btn" onclick="exportMenuCostsCSV()">${t("exportExcel")}</button>
-      <table><tr><th>${t("date")}</th><th>${t("menuName")}</th><th>${t("numThalis")}</th><th>${t("numPersons")}</th><th>${t("total")}</th><th>${t("perThaliExpenditure")}</th><th>${t("perPersonExpenditure")}</th></tr>
-      ${menuCosts.map(m=>`<tr><td>${esc(m.date)}</td><td>${esc(currentLang==="hi"?m.name_hi:m.name_en)}</td>
-        <td>${esc(m.numThalis)}</td><td>${esc(m.numPersons||"-")}</td><td>${money(m.cost)}</td><td>${money(m.perThali.toFixed(2))}</td><td>${money(m.perPerson.toFixed(2))}</td></tr>`).join("")}
-      </table>
-    </div>
-    <div class="card">
-      <div class="section-title">${t("stockLedger")}</div>
-      <table><tr><th>${t("date")}</th><th>${t("ingredients")}</th><th>Type</th><th>Qty</th><th>${t("amount")}</th></tr>
-      ${ledger.slice(-100).reverse().map(l=>{
-        const ing = ingredients.find(i=>i.id===l.ingredientId);
-        return `<tr><td>${esc(l.date)}</td><td>${ing?ingName(ing):"?"}</td><td>${esc(l.type)}</td><td>${esc(l.qty)}</td><td>${money(l.amount||0)}</td></tr>`;
-      }).join("")}
-      </table>
-    </div>
-    <div class="card">
-      <div class="section-title">${t("pendingApproval")}</div>
-      <table><tr><th>${t("date")}</th><th>Items</th></tr>
-      ${pendingIndents.map(i=>`<tr><td>${esc(i.date)}</td><td>${(i.items||[]).length}</td></tr>`).join("")}
-      </table>
-    </div>`;
-  window.__menuCostsForExport = menuCosts;
-}
-window.exportMenuCostsCSV = function(){
-  const rows = [["Date","Menu","Thalis","Persons","Total Cost","Per Thali Cost","Per Person Cost"]];
-  (window.__menuCostsForExport||[]).forEach(m=> rows.push([m.date, m.name_en||m.name_hi, m.numThalis, m.numPersons||"", m.cost.toFixed(2), m.perThali.toFixed(2), m.perPerson.toFixed(2)]));
-  csvExport("menu_wise_expenditure.csv", rows);
-};
-
-// ==========================================================================
-// PER PERSON EXPENDITURE — dedicated report, date-range filterable
-// Rate basis: most recent Receiving/Purchase tab rate per ingredient.
-// ==========================================================================
-async function renderPerPersonExpenditure(){
-  const fromEl = document.getElementById("ppeFrom");
-  const toEl = document.getElementById("ppeTo");
-  const fromDate = fromEl ? fromEl.value : "";
-  const toDate = toEl ? toEl.value : "";
-
-  const [menus, rateMap] = await Promise.all([listAll("menus"), getReceivingRateMap()]);
-  let rows = menus.map(m=>({ ...m, ...computeMenuCost(m, rateMap) }));
-  if (fromDate) rows = rows.filter(r => (r.date||"") >= fromDate);
-  if (toDate) rows = rows.filter(r => (r.date||"") <= toDate);
-  rows.sort((a,b)=> (b.date||"").localeCompare(a.date||""));
-
-  const totalCost = rows.reduce((s,r)=>s+r.cost,0);
-  const totalPersons = rows.reduce((s,r)=>s+(Number(r.numPersons)||0),0);
-  const totalThalis = rows.reduce((s,r)=>s+(Number(r.numThalis)||0),0);
-  const overallPerPerson = totalPersons ? totalCost/totalPersons : 0;
-  const overallPerThali = totalThalis ? totalCost/totalThalis : 0;
-
-  main().innerHTML = `
-    <div class="section-title">${t("perPersonExp")}</div>
-    <div class="card">
-      <div class="form-row">
-        <div><label>${currentLang==='hi'?'दिनांक से':'From Date'}</label><input type="date" id="ppeFrom" value="${esc(fromDate)}" onchange="renderPerPersonExpenditure()"></div>
-        <div><label>${currentLang==='hi'?'दिनांक तक':'To Date'}</label><input type="date" id="ppeTo" value="${esc(toDate)}" onchange="renderPerPersonExpenditure()"></div>
-      </div>
-    </div>
-    <div class="kpi-grid">
-      ${kpiCard(money(totalCost.toFixed(2)), "todaysExpenditure")}
-      ${kpiCard(money(overallPerThali.toFixed(2)), "perThaliExpenditure")}
-      ${kpiCard(money(overallPerPerson.toFixed(2)), "perPersonExpenditure")}
-    </div>
-    <div class="card">
-      <button class="small-btn" onclick="exportPerPersonCSV()">${t("exportExcel")}</button>
-      <table><tr><th>${t("date")}</th><th>${t("menuName")}</th><th>${t("numThalis")}</th><th>${t("numPersons")}</th>
-        <th>${t("total")}</th><th>${t("perThaliExpenditure")}</th><th>${t("perPersonExpenditure")}</th></tr>
-      ${rows.length ? rows.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(currentLang==="hi"?r.name_hi:r.name_en)}</td>
-        <td>${esc(r.numThalis)}</td><td>${esc(r.numPersons||"-")}</td><td>${money(r.cost)}</td>
-        <td>${money(r.perThali.toFixed(2))}</td><td>${money(r.perPerson.toFixed(2))}</td></tr>`).join("") : `<tr><td colspan="7">${t("noData")}</td></tr>`}
-      </table>
-    </div>`;
-  window.__ppeRowsForExport = rows;
-}
-window.exportPerPersonCSV = function(){
-  const rows = [["Date","Menu","Thalis","Persons","Total Cost","Per Thali Cost","Per Person Cost"]];
-  (window.__ppeRowsForExport||[]).forEach(r=> rows.push([r.date, r.name_en||r.name_hi, r.numThalis, r.numPersons||"", r.cost.toFixed(2), r.perThali.toFixed(2), r.perPerson.toFixed(2)]));
-  csvExport("per_person_expenditure.csv", rows);
-};
-
-// ==========================================================================
-// USERS (Admin only) — create user via secondary Firebase app instance
-// so the currently logged-in Admin session is NOT replaced.
-// Admin can assign a starting Role AND then fully customize permissions
-// per module/action — custom permissions always override the role default.
-// ==========================================================================
-function permMatrixHtml(idPrefix, existingPerms){
-  const p = existingPerms || {};
-  return `<table><tr><th>${t("module")}</th>${ACTIONS.map(a=>`<th>${t(a)||a}</th>`).join("")}</tr>
-    ${MODULES.map(m=>`<tr><td>${t(m)}</td>${ACTIONS.map(a=>
-      `<td style="text-align:center"><input type="checkbox" id="${idPrefix}_${m}_${a}" ${p[m]&&p[m][a]?"checked":""}></td>`
-    ).join("")}</tr>`).join("")}
-  </table>`;
-}
-function readPermMatrix(idPrefix){
-  const perms = {};
-  MODULES.forEach(m=>{
-    ACTIONS.forEach(a=>{
-      const el = document.getElementById(`${idPrefix}_${m}_${a}`);
-      if (el && el.checked){ perms[m] = perms[m]||{}; perms[m][a] = true; }
-    });
-  });
-  return perms;
-}
-async function renderUsers(){
-  const users = await listAll("users");
-  main().innerHTML = `
-    <div class="section-title">${t("users")}</div>
-    <div class="card">
-      <div class="form-row">
-        <div><label>${t("name")}</label><input id="newUserName"></div>
-        <div><label>${t("email")}</label><input id="newUserEmail" type="email"></div>
-        <div><label>Temp ${t("password")}</label><input id="newUserPassword" value="Kitchen@123"></div>
-        <div><label>${t("role")}</label>
-          <select id="newUserRole" onchange="prefillNewUserPerms()">
-            <option value="admin">Admin</option>
-            <option value="cook">Cook / कुक</option>
-            <option value="storekeeper">Store Keeper / स्टोर कीपर</option>
-            <option value="procurement">Procurement / प्रोक्योरमेंट</option>
-            <option value="distribution">Distribution / वितरण</option>
-          </select>
-        </div>
-      </div>
-      <p class="hint">${currentLang==='hi'
-        ? 'ऊपर एक Role चुनें तो नीचे उसके डिफ़ॉल्ट अधिकार अपने-आप भर जाएंगे — फिर आप अपनी मर्ज़ी से किसी भी बॉक्स को टिक/अनटिक कर सकते हैं। यही अंतिम (custom) अधिकार यूज़र को मिलेंगे।'
-        : 'Pick a Role above to auto-fill its defaults below — then tick/untick any box as you like. Whatever you save here becomes the final (custom) permissions for this user.'}</p>
-      <div class="section-title" style="font-size:14px">${t("permissionsMatrix")}</div>
-      <div id="newUserPermMatrix" style="overflow-x:auto">${permMatrixHtml("newp", DEFAULT_ROLE_PERMISSIONS.cook)}</div>
-      <button class="btn-primary" style="width:auto;margin-top:10px" onclick="createNewUser()">${t("createUser")}</button>
-    </div>
-    <div class="card">
-      <table><tr><th>${t("name")}</th><th>${t("email")}</th><th>${t("role")}</th><th>${t("action")}</th></tr>
-      ${users.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${esc(u.role)}</td>
-        <td><button class="small-btn" onclick="openEditPermissions('${u.id}')">${t("editPermissions")}</button></td></tr>
-        <tr id="editRow_${u.id}" class="hidden"><td colspan="4">
-          <div class="card" style="margin:8px 0">
-            <div style="overflow-x:auto">${permMatrixHtml("editp_"+u.id, resolvePermissions(u))}</div>
-            <button class="btn-primary" style="width:auto;margin-top:10px" onclick="saveUserPermissions('${u.id}')">${t("save")}</button>
-            <button class="btn-secondary" onclick="document.getElementById('editRow_${u.id}').classList.add('hidden')">${t("cancel")}</button>
-          </div>
-        </td></tr>`).join("")}
-      </table>
-    </div>`;
-}
-window.prefillNewUserPerms = function(){
-  const role = document.getElementById("newUserRole").value;
-  const defaults = DEFAULT_ROLE_PERMISSIONS[role] || {};
-  MODULES.forEach(m=>{
-    ACTIONS.forEach(a=>{
-      const el = document.getElementById(`newp_${m}_${a}`);
-      if (el) el.checked = !!(defaults[m] && defaults[m][a]);
-    });
-  });
-};
-window.openEditPermissions = function(uid){
-  document.getElementById(`editRow_${uid}`).classList.remove("hidden");
-};
-window.saveUserPermissions = async function(uid){
-  const permissions = readPermMatrix("editp_"+uid);
-  await updateOne("users", uid, { permissions });
-  showToast(t("saved"),"success");
-  renderUsers();
-};
-window.createNewUser = async function(){
-  const name = document.getElementById("newUserName").value.trim();
-  const email = document.getElementById("newUserEmail").value.trim();
-  const password = document.getElementById("newUserPassword").value;
-  const role = document.getElementById("newUserRole").value;
-  const permissions = readPermMatrix("newp");
-  if (!name||!email||password.length<6){ showToast("Sahi jaankari bharen (password >=6 chars)","error"); return; }
-  try{
-    // secondary app instance so creating a user doesn't log out the Admin
-    const secondaryApp = initializeApp(firebaseApp.options, "Secondary_"+Date.now());
-    const secondaryAuth = getAuth(secondaryApp);
-    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-    await setDoc(doc(db, "users", cred.user.uid), { name, email, role, permissions });
-    await signOut(secondaryAuth);
-    showToast(t("saved"),"success");
-    renderUsers();
-  }catch(err){
-    console.error(err);
-    showToast(err.message,"error");
-  }
-};
-
-// ---------------- main.js: Navigation/router ----------------
-// ==========================================================================
-// main.js — Sidebar navigation + module router
-// ==========================================================================
-
-const NAV_ITEMS = [
-  { key:"dashboard",  labelKey:"dashboard",  render:renderDashboard },
-  { key:"menu",       labelKey:"menu",       render:renderMenu },
-  { key:"indent",     labelKey:"indent",     render:renderIndent },
-  { key:"approval",   labelKey:"approval",   render:renderApproval },
-  { key:"storeIssue", labelKey:"storeIssue", render:renderStoreIssue },
-  { key:"receiving",  labelKey:"receiving",  render:renderReceiving },
-  { key:"procurement",labelKey:"procurement",render:renderProcurement },
-  { key:"distribution",labelKey:"distribution",render:renderDistribution },
-  { key:"ingredients",labelKey:"ingredients",render:renderIngredients },
-  { key:"suppliers",  labelKey:"suppliers",  render:renderSuppliers },
-  { key:"reports",    labelKey:"reports",    render:renderReports },
-  { key:"perPersonExp",labelKey:"perPersonExp",render:renderPerPersonExpenditure },
-  { key:"users",      labelKey:"users",      render:renderUsers },
-];
-
-let activeModule = "dashboard";
-
-function visibleItems(){
-  const user = window.currentUserDoc;
-  return NAV_ITEMS.filter(item => can(user, item.key, "view"));
-}
-
-function buildSidebar(){
-  const items = visibleItems();
-  const list = document.getElementById("navList");
-  list.innerHTML = items.map(it =>
-    `<li data-key="${it.key}" class="${it.key===activeModule?'active':''}" onclick="window.__navigateTo('${it.key}')">${t(it.labelKey)}</li>`
-  ).join("");
-  if (!items.find(i=>i.key===activeModule) && items.length){
-    activeModule = items[0].key;
-  }
-}
-
-window.__navigateTo = function(key){
-  const item = NAV_ITEMS.find(i=>i.key===key);
-  if (!item) return;
-  if (!can(window.currentUserDoc, key, "view")){
-    document.getElementById("mainContent").innerHTML = `<p>${t("accessDenied")}</p>`;
-    return;
-  }
-  activeModule = key;
-  buildSidebar();
-  item.render();
-  document.getElementById("sidebar").classList.remove("open"); // close on mobile after nav
-};
-
-window.renderCurrentModule = function(){
-  applyStaticTranslations();
-  buildSidebar();
-  const item = NAV_ITEMS.find(i=>i.key===activeModule);
-  if (item) item.render();
-};
-
-window.toggleSidebar = function(){
-  document.getElementById("sidebar").classList.toggle("open");
-};
-
-// Called by auth.js right after successful login
-window.initAppUI = function(){
-  activeModule = "dashboard";
-  window.renderCurrentModule();
-};
-</script>
-</body>
-</html>
+function translatePage(){const w=document.createTreeWalker(document.getElementById('app'),NodeFilter.SHOW_TEXT);let n;while(n=w.nextNode())n.nodeValue=tr(n.nodeValue);
+document.querySelectorAll('[placeholder]').forEach(e=>e.placeholder=tr(e.placeholder));}
+load();render();
+
+</script></body></html>
