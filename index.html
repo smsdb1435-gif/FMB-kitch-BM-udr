@@ -1690,7 +1690,16 @@ function readPermMatrix(idPrefix){
   return perms;
 }
 async function renderUsers(){
-  const [users, customRoles] = await Promise.all([listAll("users"), listAll("roles")]);
+  const users = await listAll("users");
+  // Fetch custom roles defensively: if the Firestore security rules haven't
+  // been updated yet to include the "roles" collection, this must NOT crash
+  // the whole Users tab — it should just show 0 custom roles instead.
+  let customRoles = [];
+  try{
+    customRoles = await listAll("roles");
+  }catch(err){
+    console.error("Could not load custom roles (check Firestore rules for the 'roles' collection):", err);
+  }
   const builtInRoles = [
     {value:"admin", label:"Admin"},
     {value:"cook", label:"Cook / कुक"},
@@ -1746,9 +1755,14 @@ window.addNewRole = async function(){
   if (!name) return;
   const exists = (window.__rolesCache||[]).some(r=>r.name.toLowerCase()===name.toLowerCase());
   if (exists){ showToast(currentLang==='hi'?"यह Role पहले से मौजूद है":"This role already exists","error"); return; }
-  await addOne("roles", { name });
-  showToast(t("saved"),"success");
-  renderUsers();
+  try{
+    await addOne("roles", { name });
+    showToast(t("saved"),"success");
+    renderUsers();
+  }catch(err){
+    console.error(err);
+    showToast(err.message,"error");
+  }
 };
 window.prefillNewUserPerms = function(){
   const role = document.getElementById("newUserRole").value;
@@ -1765,9 +1779,14 @@ window.openEditPermissions = function(uid){
 };
 window.saveUserPermissions = async function(uid){
   const permissions = readPermMatrix("editp_"+uid);
-  await updateOne("users", uid, { permissions });
-  showToast(t("saved"),"success");
-  renderUsers();
+  try{
+    await updateOne("users", uid, { permissions });
+    showToast(t("saved"),"success");
+    renderUsers();
+  }catch(err){
+    console.error(err);
+    showToast(err.message,"error");
+  }
 };
 // NOTE (important limitation): this deletes the user's Firestore profile doc,
 // which is what the app actually checks for login/permissions — so the user
@@ -1781,9 +1800,14 @@ window.deleteUserProfile = async function(uid, name){
   if (!confirm(currentLang==='hi'
     ? `क्या आप वाकई "${name}" को हटाना चाहते हैं? इनकी सारी app अनुमतियां तुरंत समाप्त हो जाएंगी।`
     : `Delete "${name}"? All their app access will be revoked immediately.`)) return;
-  await removeOne("users", uid);
-  showToast(t("saved"),"success");
-  renderUsers();
+  try{
+    await removeOne("users", uid);
+    showToast(t("saved"),"success");
+    renderUsers();
+  }catch(err){
+    console.error(err);
+    showToast(err.message,"error");
+  }
 };
 window.createNewUser = async function(){
   const name = document.getElementById("newUserName").value.trim();
@@ -1849,6 +1873,18 @@ function buildSidebar(){
   }
 }
 
+async function safeRender(renderFn){
+  try{
+    await renderFn();
+  }catch(err){
+    console.error(err);
+    document.getElementById("mainContent").innerHTML =
+      `<div class="card"><p style="color:#b3261e"><b>${currentLang==='hi'?'कुछ गलत हो गया':'Something went wrong'}:</b> ${esc(err.message)}</p>
+       <p class="hint">${currentLang==='hi'
+         ? 'यह अक्सर Firestore Security Rules में किसी collection के लिए अनुमति न होने से होता है। Browser Console (F12) में पूरी error देखें।'
+         : 'This often happens when Firestore Security Rules do not allow a collection. Check the browser Console (F12) for the full error.'}</p></div>`;
+  }
+}
 window.__navigateTo = function(key){
   const item = NAV_ITEMS.find(i=>i.key===key);
   if (!item) return;
@@ -1858,7 +1894,7 @@ window.__navigateTo = function(key){
   }
   activeModule = key;
   buildSidebar();
-  item.render();
+  safeRender(item.render);
   document.getElementById("sidebar").classList.remove("open"); // close on mobile after nav
 };
 
@@ -1866,7 +1902,7 @@ window.renderCurrentModule = function(){
   applyStaticTranslations();
   buildSidebar();
   const item = NAV_ITEMS.find(i=>i.key===activeModule);
-  if (item) item.render();
+  if (item) safeRender(item.render);
 };
 
 window.toggleSidebar = function(){
