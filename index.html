@@ -321,6 +321,99 @@ function computeMenuCost(menu, rateMap){
   };
 }
 
+// ---- Generic delete helpers (single + bulk) reused across all list screens.
+// Gated by the "delete" permission per module (Admin always has it). ----
+window.deleteRecord = async function(collectionName, id, afterFn){
+  if (!confirm(currentLang==='hi' ? "क्या आप वाकई इसे स्थायी रूप से हटाना चाहते हैं?" : "Permanently delete this record?")) return;
+  await removeOne(collectionName, id);
+  showToast(t("saved"),"success");
+  if (afterFn) afterFn();
+};
+window.bulkDeleteRecords = async function(collectionName, checkboxClass, afterFn){
+  const checked = [...document.querySelectorAll(`.${checkboxClass}:checked`)].map(el=>el.value);
+  if (!checked.length){ showToast(currentLang==='hi'?"कोई भी रिकॉर्ड नहीं चुना गया":"No records selected","error"); return; }
+  if (!confirm(`${checked.length} ${currentLang==='hi'?"रिकॉर्ड स्थायी रूप से हटाएं?":"record(s) - permanently delete?"}`)) return;
+  for (const id of checked){ await removeOne(collectionName, id); }
+  showToast(t("saved"),"success");
+  if (afterFn) afterFn();
+};
+window.toggleSelectAll = function(masterCbEl, checkboxClass){
+  document.querySelectorAll(`.${checkboxClass}`).forEach(cb=> cb.checked = masterCbEl.checked);
+};
+// Standard "select-all checkbox + Delete Selected button" bar, shown only when
+// the current user has delete rights on this module.
+function bulkDeleteBar(moduleKey, collectionName, checkboxClass, afterFnName, bulkFnName){
+  if (!can(currentUserDoc, moduleKey, "delete")) return "";
+  const fn = bulkFnName || "bulkDeleteRecords";
+  const args = bulkFnName ? `'${checkboxClass}',${afterFnName}` : `'${collectionName}','${checkboxClass}',${afterFnName}`;
+  return `<button class="btn-secondary" style="margin:6px 0" onclick="${fn}(${args})">
+    ${currentLang==='hi'?'चुने हुए हटाएं (Bulk Delete)':'Delete Selected (Bulk)'}</button>`;
+}
+
+// ---- Stock-aware deletes: Indents, Purchase Orders and Receivings all move
+// stock/pipeline numbers when created. Deleting them must reverse that effect,
+// otherwise Stock-in-Hand / Pipeline totals would silently go out of sync. ----
+async function reverseIndentStockEffects(ind){
+  for (const it of (ind.items||[])){
+    if (!it.ingredientId) continue; // custom item never touched stock
+    const issued = it.issuedQty || 0;
+    if (issued>0) await adjustStock(it.ingredientId, issued, 0); // give back what was issued
+  }
+}
+async function reversePOStockEffects(po){
+  // Only reverse the Pipeline addition if it hasn't been (partially) received yet —
+  // once received, the Receiving record itself is what reconciles stock, so
+  // reversing here too would double count.
+  if (po.status==="pending" || po.status==="ordered"){
+    for (const it of (po.items||[])) await adjustStock(it.ingredientId, 0, -it.qty);
+  }
+}
+async function reverseReceivingStockEffects(r){
+  for (const it of (r.items||[])){
+    await adjustStock(it.ingredientId, -it.qty, r.poId ? it.qty : 0);
+  }
+}
+window.deleteIndentRecord = async function(id, afterFn){
+  if (!confirm(currentLang==='hi' ? "क्या आप वाकई इसे स्थायी रूप से हटाना चाहते हैं? जारी की गई मात्रा स्टॉक में वापस जुड़ जाएगी।" : "Permanently delete? Any issued quantity will be added back to stock.")) return;
+  const ind = await getOne("indents", id);
+  if (ind) await reverseIndentStockEffects(ind);
+  await removeOne("indents", id);
+  showToast(t("saved"),"success");
+  if (afterFn) afterFn();
+};
+window.deletePORecord = async function(id, afterFn){
+  if (!confirm(currentLang==='hi' ? "क्या आप वाकई इसे स्थायी रूप से हटाना चाहते हैं?" : "Permanently delete this record?")) return;
+  const po = await getOne("purchaseOrders", id);
+  if (po) await reversePOStockEffects(po);
+  await removeOne("purchaseOrders", id);
+  showToast(t("saved"),"success");
+  if (afterFn) afterFn();
+};
+window.deleteReceivingRecord = async function(id, afterFn){
+  if (!confirm(currentLang==='hi' ? "क्या आप वाकई इसे स्थायी रूप से हटाना चाहते हैं? स्टॉक स्वतः समायोजित हो जाएगा।" : "Permanently delete? Stock will be adjusted automatically.")) return;
+  const r = await getOne("receivings", id);
+  if (r) await reverseReceivingStockEffects(r);
+  await removeOne("receivings", id);
+  showToast(t("saved"),"success");
+  if (afterFn) afterFn();
+};
+async function bulkDeleteWithReversal(collectionName, checkboxClass, reverseFn, afterFn){
+  const checked = [...document.querySelectorAll(`.${checkboxClass}:checked`)].map(el=>el.value);
+  if (!checked.length){ showToast(currentLang==='hi'?"कोई भी रिकॉर्ड नहीं चुना गया":"No records selected","error"); return; }
+  if (!confirm(`${checked.length} ${currentLang==='hi'?"रिकॉर्ड स्थायी रूप से हटाएं?":"record(s) - permanently delete?"}`)) return;
+  for (const id of checked){
+    const doc_ = await getOne(collectionName, id);
+    if (doc_) await reverseFn(doc_);
+    await removeOne(collectionName, id);
+  }
+  showToast(t("saved"),"success");
+  if (afterFn) afterFn();
+}
+window.bulkDeleteIndents = (checkboxClass, afterFn) => bulkDeleteWithReversal("indents", checkboxClass, reverseIndentStockEffects, afterFn);
+window.bulkDeletePOs = (checkboxClass, afterFn) => bulkDeleteWithReversal("purchaseOrders", checkboxClass, reversePOStockEffects, afterFn);
+window.bulkDeleteReceivings = (checkboxClass, afterFn) => bulkDeleteWithReversal("receivings", checkboxClass, reverseReceivingStockEffects, afterFn);
+
+
 
 // ---------------- i18n.js: Hindi/English translations ----------------
 // ==========================================================================
@@ -376,7 +469,7 @@ const STR = {
     vendorName:"वेंडर / सप्लायर का नाम", permissionsMatrix:"अधिकार (मॉड्यूल अनुसार)",
     editPermissions:"अधिकार संपादित करें", useCustomPerm:"कस्टम अधिकार इस्तेमाल करें (रोल की जगह)",
     notAvailable:"उपलब्ध नहीं", rateNotSet:"दर उपलब्ध नहीं (कभी receive नहीं हुआ)",
-    itemsImported:"आइटम आयात किए गए", itemsSkipped:"आइटम स्किप किए गए (पहले से मौजूद)",
+    itemsImported:"आइटम आयात किए गए", itemsSkipped:"आइटम स्किप किए गए (पहले से मौजूद)", addNewRole:"नया Role जोड़ें",
   },
   en: {
     email:"Email", password:"Password", loginBtn:"Login",
@@ -427,7 +520,7 @@ const STR = {
     vendorName:"Vendor / Supplier Name", permissionsMatrix:"Permissions (per module)",
     editPermissions:"Edit Permissions", useCustomPerm:"Use custom permissions (override role)",
     notAvailable:"Not available", rateNotSet:"Rate not available (never received yet)",
-    itemsImported:"items imported", itemsSkipped:"items skipped (already exist)",
+    itemsImported:"items imported", itemsSkipped:"items skipped (already exist)", addNewRole:"Add New Role",
   }
 };
 
@@ -746,6 +839,7 @@ async function renderIngredients(){
         </div>
       </div>
       <table id="ingredientsTable"></table>
+      ${bulkDeleteBar("ingredients","ingredients","del_ing","renderIngredients")}
     </div>`;
   window.__allIngredientsCache = items;
   renderIngredientsTable();
@@ -753,11 +847,13 @@ async function renderIngredients(){
 function renderIngredientsTable(){
   const tbl = document.getElementById("ingredientsTable");
   if (!tbl) return;
+  const canDel = can(currentUserDoc, "ingredients", "delete");
   const canAdd = can(currentUserDoc, "ingredients", "add");
   const filterCat = document.getElementById("ingFilterCategory")?.value || "";
   const items = (window.__allIngredientsCache||[]).filter(i => !filterCat || i.category===filterCat);
-  tbl.innerHTML = `<tr><th>${t("name")}</th><th>${t("unit")}</th><th>${t("type")}</th><th>${t("category")}</th>${canAdd?`<th>${t("action")}</th>`:""}</tr>` +
+  tbl.innerHTML = `<tr>${canDel?`<th><input type="checkbox" onclick="toggleSelectAll(this,'del_ing')"></th>`:""}<th>${t("name")}</th><th>${t("unit")}</th><th>${t("type")}</th><th>${t("category")}</th>${canAdd?`<th>${t("action")}</th>`:""}</tr>` +
     items.map(i=>`<tr>
+      ${canDel?`<td><input type="checkbox" class="del_ing" value="${i.id}"></td>`:""}
       <td>${esc(i.name_hi)} / ${esc(i.name_en)}</td><td>${esc(i.unit)}</td>
       <td><span class="tag ${i.type==='veg'?'tag-veg':'tag-nonveg'}">${t(i.type)}</span></td>
       <td>${esc(i.category||"-")}</td>
@@ -850,6 +946,7 @@ window.bulkUploadIngredients = async function(){
 async function renderSuppliers(){
   const items = await listAll("suppliers");
   const canAdd = can(currentUserDoc, "suppliers", "add");
+  const canDel = can(currentUserDoc, "suppliers", "delete");
   main().innerHTML = `
     <div class="section-title">${t("suppliers")}</div>
     ${canAdd ? `<div class="card">
@@ -860,9 +957,12 @@ async function renderSuppliers(){
       </div>
       <button class="btn-primary" style="width:auto" onclick="saveSupplier()">${t("addNew")}</button>
     </div>`:""}
-    <div class="card"><table><tr><th>${t("name")}</th><th>Contact</th><th>Address</th></tr>
-      ${items.map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(s.contact)}</td><td>${esc(s.address)}</td></tr>`).join("")}
-    </table></div>`;
+    <div class="card"><table><tr>${canDel?`<th><input type="checkbox" onclick="toggleSelectAll(this,'del_sup')"></th>`:""}<th>${t("name")}</th><th>Contact</th><th>Address</th>${canDel?`<th></th>`:""}</tr>
+      ${items.map(s=>`<tr>${canDel?`<td><input type="checkbox" class="del_sup" value="${s.id}"></td>`:""}<td>${esc(s.name)}</td><td>${esc(s.contact)}</td><td>${esc(s.address)}</td>
+        ${canDel?`<td><button class="small-btn" onclick="deleteRecord('suppliers','${s.id}',renderSuppliers)">${t("delete")}</button></td>`:""}</tr>`).join("")}
+    </table>
+    ${bulkDeleteBar("suppliers","suppliers","del_sup","renderSuppliers")}
+    </div>`;
 }
 window.saveSupplier = async function(){
   const data = {
@@ -928,15 +1028,19 @@ async function renderMenu(){
     </div>` : ""}
 
     <div class="card">
-      <table><tr><th>${t("date")}</th><th>${t("menuName")}</th><th>${t("numThalis")}</th><th>${t("numPersons")}</th><th>${t("status")}</th></tr>
+      <table><tr>${can(currentUserDoc,"menu","delete")?`<th><input type="checkbox" onclick="toggleSelectAll(this,'del_menu')"></th>`:""}<th>${t("date")}</th><th>${t("menuName")}</th><th>${t("numThalis")}</th><th>${t("numPersons")}</th><th>${t("status")}</th>${can(currentUserDoc,"menu","delete")?`<th></th>`:""}</tr>
         ${menus.map(m=>{
           const linkedIndent = menuIndentsByMenuId[m.id];
           const statusTag = linkedIndent ? `<span class="tag tag-${linkedIndent.status}">${t(linkedIndent.status)}</span>` : "-";
+          const canDel = can(currentUserDoc,"menu","delete");
           return `<tr>
+          ${canDel?`<td><input type="checkbox" class="del_menu" value="${m.id}"></td>`:""}
           <td>${esc(m.date)}</td><td>${esc(currentLang==="hi"?m.name_hi:m.name_en)}</td><td>${esc(m.numThalis)}</td><td>${esc(m.numPersons||"-")}</td>
           <td>${statusTag}</td>
+          ${canDel?`<td><button class="small-btn" onclick="deleteRecord('menus','${m.id}',renderMenu)">${t("delete")}</button></td>`:""}
         </tr>`;}).join("")}
       </table>
+      ${bulkDeleteBar("menu","menus","del_menu","renderMenu")}
     </div>`;
 
   window.__ingredientsCache = ingredients;
@@ -1077,13 +1181,18 @@ async function renderIndent(){
     </div>`:""}
 
     <div class="card">
-      <table><tr><th>${t("date")}</th><th>ID</th><th>${t("status")}</th><th>Items</th></tr>
-      ${indents.map(i=>`<tr>
+      <table><tr>${can(currentUserDoc,"indent","delete")?`<th><input type="checkbox" onclick="toggleSelectAll(this,'del_indent')"></th>`:""}<th>${t("date")}</th><th>ID</th><th>${t("status")}</th><th>Items</th>${can(currentUserDoc,"indent","delete")?`<th></th>`:""}</tr>
+      ${indents.map(i=>{
+        const canDel = can(currentUserDoc,"indent","delete");
+        return `<tr>
+        ${canDel?`<td><input type="checkbox" class="del_indent" value="${i.id}"></td>`:""}
         <td>${esc(i.date)}</td><td>${i.id.slice(0,6)}</td>
         <td><span class="tag tag-${i.status}">${t(i.status)}</span></td>
         <td>${(i.items||[]).length}</td>
-      </tr>`).join("")}
+        ${canDel?`<td><button class="small-btn" onclick="deleteIndentRecord('${i.id}',renderIndent)">${t("delete")}</button></td>`:""}
+      </tr>`;}).join("")}
       </table>
+      ${bulkDeleteBar("indent","indents","del_indent","renderIndent","bulkDeleteIndents")}
     </div>`;
   renderIndentItemsTable();
 }
@@ -1253,18 +1362,24 @@ async function renderProcurement(){
       <table id="poItemsTable"></table>
       <button class="btn-primary" style="width:auto;margin-top:10px" onclick="savePO()">${t("createPO")}</button>
     </div>`:""}
-    <div class="card"><table><tr><th>${t("date")}</th><th>${t("supplier")}</th><th>${t("amount")}</th><th>${t("status")}</th><th>${t("action")}</th></tr>
+    <div class="card"><table><tr>${can(currentUserDoc,"procurement","delete")?`<th><input type="checkbox" onclick="toggleSelectAll(this,'del_po')"></th>`:""}<th>${t("date")}</th><th>${t("supplier")}</th><th>${t("amount")}</th><th>${t("status")}</th><th>${t("action")}</th></tr>
     ${pos.map(p=>{
       const total = (p.items||[]).reduce((s,it)=>s+it.qty*it.rate,0);
-      return `<tr><td>${esc(p.date)}</td><td>${esc(p.supplierName||"-")}</td><td>${money(total)}</td>
+      const canDel = can(currentUserDoc,"procurement","delete");
+      return `<tr>
+        ${canDel?`<td><input type="checkbox" class="del_po" value="${p.id}"></td>`:""}
+        <td>${esc(p.date)}</td><td>${esc(p.supplierName||"-")}</td><td>${money(total)}</td>
         <td><span class="tag tag-${p.status}">${t(p.status)||p.status}</span></td>
         <td>
           <select onchange="updatePOStatus('${p.id}', this.value)">
             ${["pending","ordered","partiallyReceived","received"].map(s=>`<option value="${s}" ${p.status===s?"selected":""}>${t(s)}</option>`).join("")}
           </select>
+          ${canDel?`<button class="small-btn" onclick="deletePORecord('${p.id}',renderProcurement)">${t("delete")}</button>`:""}
         </td></tr>`;
     }).join("")}
-    </table></div>`;
+    </table>
+    ${bulkDeleteBar("procurement","purchaseOrders","del_po","renderProcurement","bulkDeletePOs")}
+    </div>`;
   poDraftItems = [];
   renderPOItemsTable();
 }
@@ -1335,12 +1450,19 @@ async function renderReceiving(){
       <table id="recvItemsTable"></table>
       <button class="btn-primary" style="width:auto;margin-top:10px" onclick="saveReceiving()">${t("receiveEntry")}</button>
     </div>`:""}
-    <div class="card"><table><tr><th>${t("date")}</th><th>${t("vendorName")}</th><th>${t("amount")}</th></tr>
+    <div class="card"><table><tr>${can(currentUserDoc,"receiving","delete")?`<th><input type="checkbox" onclick="toggleSelectAll(this,'del_recv')"></th>`:""}<th>${t("date")}</th><th>${t("vendorName")}</th><th>${t("amount")}</th>${can(currentUserDoc,"receiving","delete")?`<th></th>`:""}</tr>
     ${receivings.map(r=>{
       const total = (r.items||[]).reduce((s,it)=>s+it.qty*it.rate,0);
-      return `<tr><td>${esc(r.date)}</td><td>${esc(r.supplierName||"-")}</td><td>${money(total)}</td></tr>`;
+      const canDel = can(currentUserDoc,"receiving","delete");
+      return `<tr>
+        ${canDel?`<td><input type="checkbox" class="del_recv" value="${r.id}"></td>`:""}
+        <td>${esc(r.date)}</td><td>${esc(r.supplierName||"-")}</td><td>${money(total)}</td>
+        ${canDel?`<td><button class="small-btn" onclick="deleteReceivingRecord('${r.id}',renderReceiving)">${t("delete")}</button></td>`:""}
+      </tr>`;
     }).join("")}
-    </table></div>`;
+    </table>
+    ${bulkDeleteBar("receiving","receivings","del_recv","renderReceiving","bulkDeleteReceivings")}
+    </div>`;
   window.__recvDraftItems = [];
   renderRecvItemsTable();
 }
@@ -1404,11 +1526,19 @@ async function renderDistribution(){
       <table id="distCentersTable"></table>
       <button class="btn-primary" style="width:auto;margin-top:10px" onclick="saveDistribution()">${t("save")}</button>
     </div>`:""}
-    <div class="card"><table><tr><th>${t("date")}</th><th>${t("preparedThalis")}</th><th>${t("distributedThalis")}</th>
-      <th>${t("remainingThalis")}</th><th>${t("wastedThalis")}</th></tr>
-      ${rows.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.preparedThalis)}</td><td>${esc(r.distributedThalis)}</td>
-        <td>${(r.preparedThalis||0)-(r.distributedThalis||0)-(r.wastedThalis||0)}</td><td>${esc(r.wastedThalis)}</td></tr>`).join("")}
-    </table></div>`;
+    <div class="card"><table><tr>${can(currentUserDoc,"distribution","delete")?`<th><input type="checkbox" onclick="toggleSelectAll(this,'del_dist')"></th>`:""}<th>${t("date")}</th><th>${t("preparedThalis")}</th><th>${t("distributedThalis")}</th>
+      <th>${t("remainingThalis")}</th><th>${t("wastedThalis")}</th>${can(currentUserDoc,"distribution","delete")?`<th></th>`:""}</tr>
+      ${rows.map(r=>{
+        const canDel = can(currentUserDoc,"distribution","delete");
+        return `<tr>
+        ${canDel?`<td><input type="checkbox" class="del_dist" value="${r.id}"></td>`:""}
+        <td>${esc(r.date)}</td><td>${esc(r.preparedThalis)}</td><td>${esc(r.distributedThalis)}</td>
+        <td>${(r.preparedThalis||0)-(r.distributedThalis||0)-(r.wastedThalis||0)}</td><td>${esc(r.wastedThalis)}</td>
+        ${canDel?`<td><button class="small-btn" onclick="deleteRecord('distribution','${r.id}',renderDistribution)">${t("delete")}</button></td>`:""}
+      </tr>`;}).join("")}
+    </table>
+    ${bulkDeleteBar("distribution","distribution","del_dist","renderDistribution")}
+    </div>`;
   window.__distCenters = [];
   renderDistCentersTable();
 }
@@ -1560,7 +1690,15 @@ function readPermMatrix(idPrefix){
   return perms;
 }
 async function renderUsers(){
-  const users = await listAll("users");
+  const [users, customRoles] = await Promise.all([listAll("users"), listAll("roles")]);
+  const builtInRoles = [
+    {value:"admin", label:"Admin"},
+    {value:"cook", label:"Cook / कुक"},
+    {value:"storekeeper", label:"Store Keeper / स्टोर कीपर"},
+    {value:"procurement", label:"Procurement / प्रोक्योरमेंट"},
+    {value:"distribution", label:"Distribution / वितरण"},
+  ];
+  const roleOptions = builtInRoles.concat(customRoles.map(r=>({value:r.name, label:r.name})));
   main().innerHTML = `
     <div class="section-title">${t("users")}</div>
     <div class="card">
@@ -1570,26 +1708,29 @@ async function renderUsers(){
         <div><label>Temp ${t("password")}</label><input id="newUserPassword" value="Kitchen@123"></div>
         <div><label>${t("role")}</label>
           <select id="newUserRole" onchange="prefillNewUserPerms()">
-            <option value="admin">Admin</option>
-            <option value="cook">Cook / कुक</option>
-            <option value="storekeeper">Store Keeper / स्टोर कीपर</option>
-            <option value="procurement">Procurement / प्रोक्योरमेंट</option>
-            <option value="distribution">Distribution / वितरण</option>
+            ${roleOptions.map(r=>`<option value="${esc(r.value)}">${esc(r.label)}</option>`).join("")}
           </select>
         </div>
       </div>
+      <div class="form-row" style="align-items:flex-end">
+        <div><label>${t("addNewRole")}</label><input id="newRoleName" placeholder="${t("addNewRole")}"></div>
+        <div style="flex:0"><button class="add-row-btn" onclick="addNewRole()">${t("addNew")}</button></div>
+      </div>
       <p class="hint">${currentLang==='hi'
-        ? 'ऊपर एक Role चुनें तो नीचे उसके डिफ़ॉल्ट अधिकार अपने-आप भर जाएंगे — फिर आप अपनी मर्ज़ी से किसी भी बॉक्स को टिक/अनटिक कर सकते हैं। यही अंतिम (custom) अधिकार यूज़र को मिलेंगे।'
-        : 'Pick a Role above to auto-fill its defaults below — then tick/untick any box as you like. Whatever you save here becomes the final (custom) permissions for this user.'}</p>
+        ? 'ऊपर एक Role चुनें तो नीचे उसके डिफ़ॉल्ट अधिकार अपने-आप भर जाएंगे — फिर आप अपनी मर्ज़ी से किसी भी बॉक्स को टिक/अनटिक कर सकते हैं। नए (custom) Role के लिए सारे बॉक्स खाली रहेंगे, अपनी मर्ज़ी से टिक करें। यही अंतिम (custom) अधिकार यूज़र को मिलेंगे।'
+        : 'Pick a Role above to auto-fill its defaults below — then tick/untick any box as you like. A new (custom) Role starts blank; tick whatever you want. Whatever you save here becomes the final (custom) permissions for this user.'}</p>
       <div class="section-title" style="font-size:14px">${t("permissionsMatrix")}</div>
       <div id="newUserPermMatrix" style="overflow-x:auto">${permMatrixHtml("newp", DEFAULT_ROLE_PERMISSIONS.cook)}</div>
       <button class="btn-primary" style="width:auto;margin-top:10px" onclick="createNewUser()">${t("createUser")}</button>
     </div>
     <div class="card">
-      <table><tr><th>${t("name")}</th><th>${t("email")}</th><th>${t("role")}</th><th>${t("action")}</th></tr>
-      ${users.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${esc(u.role)}</td>
-        <td><button class="small-btn" onclick="openEditPermissions('${u.id}')">${t("editPermissions")}</button></td></tr>
-        <tr id="editRow_${u.id}" class="hidden"><td colspan="4">
+      <table><tr><th>${t("name")}</th><th>${t("email")}</th><th>${t("role")}</th><th>${currentLang==='hi'?'बनाया':'Created By'}</th><th>${t("action")}</th></tr>
+      ${users.map(u=>`<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td>${esc(u.role)}</td><td>${esc(u.createdByName||"-")}</td>
+        <td>
+          <button class="small-btn" onclick="openEditPermissions('${u.id}')">${t("editPermissions")}</button>
+          ${u.id===currentUserDoc.uid ? "" : `<button class="small-btn" style="background:#b3261e" onclick="deleteUserProfile('${u.id}','${esc(u.name)}')">${t("delete")}</button>`}
+        </td></tr>
+        <tr id="editRow_${u.id}" class="hidden"><td colspan="5">
           <div class="card" style="margin:8px 0">
             <div style="overflow-x:auto">${permMatrixHtml("editp_"+u.id, resolvePermissions(u))}</div>
             <button class="btn-primary" style="width:auto;margin-top:10px" onclick="saveUserPermissions('${u.id}')">${t("save")}</button>
@@ -1598,10 +1739,20 @@ async function renderUsers(){
         </td></tr>`).join("")}
       </table>
     </div>`;
+  window.__rolesCache = customRoles;
 }
+window.addNewRole = async function(){
+  const name = document.getElementById("newRoleName").value.trim();
+  if (!name) return;
+  const exists = (window.__rolesCache||[]).some(r=>r.name.toLowerCase()===name.toLowerCase());
+  if (exists){ showToast(currentLang==='hi'?"यह Role पहले से मौजूद है":"This role already exists","error"); return; }
+  await addOne("roles", { name });
+  showToast(t("saved"),"success");
+  renderUsers();
+};
 window.prefillNewUserPerms = function(){
   const role = document.getElementById("newUserRole").value;
-  const defaults = DEFAULT_ROLE_PERMISSIONS[role] || {};
+  const defaults = DEFAULT_ROLE_PERMISSIONS[role] || {}; // custom roles simply start blank
   MODULES.forEach(m=>{
     ACTIONS.forEach(a=>{
       const el = document.getElementById(`newp_${m}_${a}`);
@@ -1618,6 +1769,22 @@ window.saveUserPermissions = async function(uid){
   showToast(t("saved"),"success");
   renderUsers();
 };
+// NOTE (important limitation): this deletes the user's Firestore profile doc,
+// which is what the app actually checks for login/permissions — so the user
+// instantly loses ALL access (onAuthStateChanged shows them "profile not
+// found" and every can() check returns false). Their Firebase Authentication
+// login record itself cannot be removed from client-side code (Firebase does
+// not allow deleting another user's Auth account without a server-side Admin
+// SDK / Cloud Function) — so technically they could still "log in", but they
+// will see nothing and be able to do nothing.
+window.deleteUserProfile = async function(uid, name){
+  if (!confirm(currentLang==='hi'
+    ? `क्या आप वाकई "${name}" को हटाना चाहते हैं? इनकी सारी app अनुमतियां तुरंत समाप्त हो जाएंगी।`
+    : `Delete "${name}"? All their app access will be revoked immediately.`)) return;
+  await removeOne("users", uid);
+  showToast(t("saved"),"success");
+  renderUsers();
+};
 window.createNewUser = async function(){
   const name = document.getElementById("newUserName").value.trim();
   const email = document.getElementById("newUserEmail").value.trim();
@@ -1630,7 +1797,10 @@ window.createNewUser = async function(){
     const secondaryApp = initializeApp(firebaseApp.options, "Secondary_"+Date.now());
     const secondaryAuth = getAuth(secondaryApp);
     const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-    await setDoc(doc(db, "users", cred.user.uid), { name, email, role, permissions });
+    await setDoc(doc(db, "users", cred.user.uid), {
+      name, email, role, permissions,
+      createdBy: currentUserDoc.uid, createdByName: currentUserDoc.name || currentUserDoc.email
+    });
     await signOut(secondaryAuth);
     showToast(t("saved"),"success");
     renderUsers();
