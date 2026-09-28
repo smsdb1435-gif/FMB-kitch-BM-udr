@@ -533,6 +533,7 @@ const STR = {
     editPermissions:"अधिकार संपादित करें", useCustomPerm:"कस्टम अधिकार इस्तेमाल करें (रोल की जगह)",
     notAvailable:"उपलब्ध नहीं", rateNotSet:"दर उपलब्ध नहीं (कभी receive नहीं हुआ)",
     itemsImported:"आइटम आयात किए गए", itemsSkipped:"आइटम स्किप किए गए (पहले से मौजूद)", addNewRole:"नया Role जोड़ें",
+    dist_centerCount:"इस केंद्र पर वितरित थालियां", dist_centerHelp:"जिस केंद्र/स्थान पर भोजन गया, उसका नाम और वहां कितनी थालियां दी गईं — यह लिखें। सभी केंद्रों का योग ऊपर 'वितरित थालियां' के बराबर होना चाहिए।", dist_centersTotal:"केंद्रों का कुल योग", dist_mismatch:"वितरित थालियों से मेल नहीं खाता", dist_centers:"केंद्र-वार वितरण",
     opCost:"संचालन खर्च", oc_daily:"दैनिक", oc_monthly:"मासिक", oc_kind:"प्रकार", oc_head:"मद (Head)", oc_month:"माह", oc_note:"विवरण / नोट",
     oc_include:"संचालन खर्च को कुल खर्च, प्रति थाली व प्रति व्यक्ति में जोड़ें", oc_ingCost:"सामग्री खर्च", oc_opCost:"संचालन खर्च (आवंटित)",
     oc_todayOp:"आज का संचालन खर्च", oc_monthTotal:"इस माह की कुल प्रविष्टियां", oc_byHead:"मद-वार योग", oc_entries:"प्रविष्टियां",
@@ -588,6 +589,7 @@ const STR = {
     editPermissions:"Edit Permissions", useCustomPerm:"Use custom permissions (override role)",
     notAvailable:"Not available", rateNotSet:"Rate not available (never received yet)",
     itemsImported:"items imported", itemsSkipped:"items skipped (already exist)", addNewRole:"Add New Role",
+    dist_centerCount:"Thalis given at this center", dist_centerHelp:"Enter each place/center where food was sent and how many thalis were given there. The total of all centers should equal 'Distributed Thalis' above.", dist_centersTotal:"Total of centers", dist_mismatch:"does not match Distributed Thalis", dist_centers:"Center-wise distribution",
     opCost:"Operational Cost", oc_daily:"Daily", oc_monthly:"Monthly", oc_kind:"Type", oc_head:"Head", oc_month:"Month", oc_note:"Details / Note",
     oc_include:"Include operational cost in total kitchen cost, per thali & per person", oc_ingCost:"Ingredient Cost", oc_opCost:"Operational Cost (allocated)",
     oc_todayOp:"Today's Operational Cost", oc_monthTotal:"This month's total entries", oc_byHead:"Head-wise total", oc_entries:"Entries",
@@ -1417,6 +1419,28 @@ window.submitStoreIssue = async function(indentId){
 // PROCUREMENT — Purchase Orders
 // ==========================================================================
 let poDraftItems = [];
+// Reusable ingredient picker (category filter + live search) for PO / Receiving.
+function ingPickerHtml(prefix, ingredients){
+  const cats = [...new Set(ingredients.map(i=>i.category).filter(Boolean))].sort();
+  return `<div class="form-row">
+    <div><label>${t("category")}</label><select id="${prefix}Cat" onchange="filterIngPicker('${prefix}')">
+      <option value="">${t("allCategories")}</option>${cats.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("")}</select></div>
+    <div><label>${t("searchIngredient")}</label><input id="${prefix}Search" oninput="filterIngPicker('${prefix}')" placeholder="${t("searchIngredient")}"></div>
+  </div>`;
+}
+window.filterIngPicker = function(prefix){
+  const sel = document.getElementById(prefix+"IngSelect");
+  if (!sel) return;
+  const cat = document.getElementById(prefix+"Cat")?.value || "";
+  const q = (document.getElementById(prefix+"Search")?.value || "").trim().toLowerCase();
+  const list = (window.__ingredientsCache||[]).filter(i=>{
+    if (cat && i.category !== cat) return false;
+    if (q && !((i.name_hi||"").toLowerCase().includes(q) || (i.name_en||"").toLowerCase().includes(q))) return false;
+    return true;
+  });
+  sel.innerHTML = list.map(i=>`<option value="${i.id}">${ingName(i)} (${esc(i.unit)})</option>`).join("");
+};
+
 async function renderProcurement(){
   const [pos, suppliers, ingredients] = await Promise.all([listAll("purchaseOrders"), listAll("suppliers"), listAll("ingredients")]);
   window.__ingredientsCache = ingredients;
@@ -1430,8 +1454,9 @@ async function renderProcurement(){
         <div><label>${t("date")}</label><input id="poDate" type="date" value="${todayStr()}"></div>
       </div>
       <datalist id="vendorSuggestions">${suppliers.map(s=>`<option value="${esc(s.name)}">`).join("")}</datalist>
+      ${ingPickerHtml("po", ingredients)}
       <div class="form-row">
-        <div style="flex:2"><select id="poIngSelect">${ingredients.map(i=>`<option value="${i.id}">${ingName(i)}</option>`).join("")}</select></div>
+        <div style="flex:2"><select id="poIngSelect"></select></div>
         <div><label>${t("requiredQty")}</label><input id="poQty" type="number" step="0.001" value="1"></div>
         <div><label>${t("rate")}</label><input id="poRate" type="number" step="0.01" value="0"></div>
         <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addPOItem()">${t("addNew")}</button></div>
@@ -1458,6 +1483,7 @@ async function renderProcurement(){
     ${bulkDeleteBar("procurement","purchaseOrders","del_po","renderProcurement","bulkDeletePOs")}
     </div>`;
   poDraftItems = [];
+  filterIngPicker("po");
   renderPOItemsTable();
 }
 function renderPOItemsTable(){
@@ -1518,8 +1544,9 @@ async function renderReceiving(){
         <div><label>${t("date")}</label><input id="recvDate" type="date" value="${todayStr()}"></div>
       </div>
       <datalist id="vendorSuggestions">${suppliers.map(s=>`<option value="${esc(s.name)}">`).join("")}</datalist>
+      ${ingPickerHtml("recv", ingredients)}
       <div class="form-row">
-        <div style="flex:2"><select id="recvIngSelect">${ingredients.map(i=>`<option value="${i.id}">${ingName(i)}</option>`).join("")}</select></div>
+        <div style="flex:2"><select id="recvIngSelect"></select></div>
         <div><label>${t("requiredQty")}</label><input id="recvQty" type="number" step="0.001" value="1"></div>
         <div><label>${t("rate")}</label><input id="recvRate" type="number" step="0.01" value="0"></div>
         <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addReceivingItem()">${t("addNew")}</button></div>
@@ -1541,6 +1568,7 @@ async function renderReceiving(){
     ${bulkDeleteBar("receiving","receivings","del_recv","renderReceiving","bulkDeleteReceivings")}
     </div>`;
   window.__recvDraftItems = [];
+  filterIngPicker("recv");
   renderRecvItemsTable();
 }
 function renderRecvItemsTable(){
@@ -1592,25 +1620,27 @@ async function renderDistribution(){
       <div class="form-row">
         <div><label>${t("date")}</label><input id="distDate" type="date" value="${todayStr()}"></div>
         <div><label>${t("preparedThalis")}</label><input id="distPrepared" type="number" value="0"></div>
-        <div><label>${t("distributedThalis")}</label><input id="distDistributed" type="number" value="0"></div>
+        <div><label>${t("distributedThalis")}</label><input id="distDistributed" type="number" value="0" oninput="renderDistCentersTable()"></div>
         <div><label>${t("wastedThalis")}</label><input id="distWasted" type="number" value="0"></div>
       </div>
       <div class="form-row">
         <div><label>${t("distributionCenter")}</label><input id="distCenterName"></div>
-        <div><label>Count</label><input id="distCenterCount" type="number" value="0"></div>
+        <div><label>${t("dist_centerCount")}</label><input id="distCenterCount" type="number" value="0"></div>
         <div style="flex:0"><button class="add-row-btn" style="margin-top:22px" onclick="addDistCenter()">${t("addNew")}</button></div>
       </div>
+      <p class="hint">${t("dist_centerHelp")}</p>
       <table id="distCentersTable"></table>
       <button class="btn-primary" style="width:auto;margin-top:10px" onclick="saveDistribution()">${t("save")}</button>
     </div>`:""}
     <div class="card"><table><tr>${can(currentUserDoc,"distribution","delete")?`<th><input type="checkbox" onclick="toggleSelectAll(this,'del_dist')"></th>`:""}<th>${t("date")}</th><th>${t("preparedThalis")}</th><th>${t("distributedThalis")}</th>
-      <th>${t("remainingThalis")}</th><th>${t("wastedThalis")}</th>${can(currentUserDoc,"distribution","delete")?`<th></th>`:""}</tr>
+      <th>${t("remainingThalis")}</th><th>${t("wastedThalis")}</th><th>${t("dist_centers")}</th>${can(currentUserDoc,"distribution","delete")?`<th></th>`:""}</tr>
       ${rows.map(r=>{
         const canDel = can(currentUserDoc,"distribution","delete");
         return `<tr>
         ${canDel?`<td><input type="checkbox" class="del_dist" value="${r.id}"></td>`:""}
         <td>${esc(r.date)}</td><td>${esc(r.preparedThalis)}</td><td>${esc(r.distributedThalis)}</td>
         <td>${(r.preparedThalis||0)-(r.distributedThalis||0)-(r.wastedThalis||0)}</td><td>${esc(r.wastedThalis)}</td>
+        <td>${(r.centers||[]).map(c=>`${esc(c.name)}: ${esc(c.count)}`).join(", ")||"-"}</td>
         ${canDel?`<td><button class="small-btn" onclick="deleteRecord('distribution','${r.id}',renderDistribution)">${t("delete")}</button></td>`:""}
       </tr>`;}).join("")}
     </table>
@@ -1622,9 +1652,13 @@ async function renderDistribution(){
 function renderDistCentersTable(){
   const tbl = document.getElementById("distCentersTable");
   if (!tbl) return;
-  tbl.innerHTML = `<tr><th>${t("distributionCenter")}</th><th>Count</th><th></th></tr>` +
+  const total = window.__distCenters.reduce((s,c)=>s+(Number(c.count)||0),0);
+  const distributed = Number(document.getElementById("distDistributed")?.value)||0;
+  const mismatch = window.__distCenters.length && total !== distributed;
+  tbl.innerHTML = `<tr><th>${t("distributionCenter")}</th><th>${t("dist_centerCount")}</th><th></th></tr>` +
     window.__distCenters.map((c,idx)=>`<tr><td>${esc(c.name)}</td><td>${c.count}</td>
-      <td><button class="remove-row-btn" onclick="removeDistCenter(${idx})">✕</button></td></tr>`).join("");
+      <td><button class="remove-row-btn" onclick="removeDistCenter(${idx})">✕</button></td></tr>`).join("") +
+    (window.__distCenters.length ? `<tr><td><b>${t("dist_centersTotal")}</b></td><td class="${mismatch?'shortfall':'ok-stock'}"><b>${total}</b>${mismatch?` — ${t("dist_mismatch")} (${distributed})`:""}</td><td></td></tr>` : "");
 }
 window.addDistCenter = function(){
   const name = document.getElementById("distCenterName").value.trim();
